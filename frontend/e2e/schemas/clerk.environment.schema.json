@@ -1,0 +1,1589 @@
+{
+  "type": "object",
+  "properties": {
+    "api_keys_settings": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "orgs_api_keys_enabled": {
+          "type": "boolean"
+        },
+        "user_api_keys_enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled",
+        "orgs_api_keys_enabled",
+        "user_api_keys_enabled"
+      ],
+      "additionalProperties": true
+    },
+    "auth_config": {
+      "type": "object",
+      "properties": {
+        "claimed_at": {
+          "type": "null"
+        },
+        "cookieless_dev": {
+          "type": "boolean"
+        },
+        "email_address": {
+          "type": "string"
+        },
+        "email_address_verification_strategies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "enhanced_email_deliverability": {
+          "type": "boolean"
+        },
+        "first_factors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "first_name": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "identification_requirements": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "identification_strategies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "last_name": {
+          "type": "string"
+        },
+        "object": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "phone_number": {
+          "type": "string"
+        },
+        "reverification": {
+          "type": "boolean"
+        },
+        "second_factors": {
+          "type": "array",
+          "items": {}
+        },
+        "single_session_mode": {
+          "type": "boolean"
+        },
+        "test_mode": {
+          "type": "boolean"
+        },
+        "url_based_session_syncing": {
+          "type": "boolean"
+        },
+        "username": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "claimed_at",
+        "cookieless_dev",
+        "email_address",
+        "email_address_verification_strategies",
+        "enhanced_email_deliverability",
+        "first_factors",
+        "first_name",
+        "id",
+        "identification_requirements",
+        "identification_strategies",
+        "last_name",
+        "object",
+        "password",
+        "phone_number",
+        "reverification",
+        "second_factors",
+        "single_session_mode",
+        "test_mode",
+        "url_based_session_syncing",
+        "username"
+      ],
+      "additionalProperties": true
+    },
+    "client_debug_mode": {
+      "type": "boolean"
+    },
+    "commerce_settings": {
+      "type": "object",
+      "properties": {
+        "billing": {
+          "type": "object",
+          "properties": {
+            "free_trial_requires_payment_method": {
+              "type": "boolean"
+            },
+            "organization": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "has_paid_plans": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "has_paid_plans"
+              ],
+              "additionalProperties": true
+            },
+            "stripe_publishable_key": {
+              "type": "null"
+            },
+            "user": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "has_paid_plans": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "has_paid_plans"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "free_trial_requires_payment_method",
+            "organization",
+            "stripe_publishable_key",
+            "user"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "billing"
+      ],
+      "additionalProperties": true
+    },
+    "display_config": {
+      "type": "object",
+      "properties": {
+        "after_create_organization_url": {
+          "type": "string"
+        },
+        "after_join_waitlist_url": {
+          "type": "string"
+        },
+        "after_leave_organization_url": {
+          "type": "string"
+        },
+        "after_sign_in_url": {
+          "type": "string"
+        },
+        "after_sign_out_all_url": {
+          "type": "string"
+        },
+        "after_sign_out_one_url": {
+          "type": "string"
+        },
+        "after_sign_up_url": {
+          "type": "string"
+        },
+        "after_switch_session_url": {
+          "type": "string"
+        },
+        "application_name": {
+          "type": "string"
+        },
+        "branded": {
+          "type": "boolean"
+        },
+        "captcha_oauth_bypass": {
+          "type": "array",
+          "items": {}
+        },
+        "captcha_provider": {
+          "type": "string"
+        },
+        "captcha_public_key": {
+          "type": "string"
+        },
+        "captcha_public_key_invisible": {
+          "type": "string"
+        },
+        "captcha_widget_type": {
+          "type": "string"
+        },
+        "clerk_js_version": {
+          "type": "string"
+        },
+        "create_organization_url": {
+          "type": "string"
+        },
+        "experimental_force_oauth_first": {
+          "type": "boolean"
+        },
+        "favicon_image": {
+          "type": "null"
+        },
+        "favicon_image_url": {
+          "type": "string"
+        },
+        "favicon_url": {
+          "type": "null"
+        },
+        "google_one_tap_client_id": {
+          "type": "null"
+        },
+        "help_url": {
+          "type": "null"
+        },
+        "home_url": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "instance_environment_type": {
+          "type": "string"
+        },
+        "logo_image": {
+          "type": "null"
+        },
+        "logo_image_url": {
+          "type": "string"
+        },
+        "logo_link_url": {
+          "type": "string"
+        },
+        "logo_url": {
+          "type": "null"
+        },
+        "object": {
+          "type": "string"
+        },
+        "organization_profile_url": {
+          "type": "string"
+        },
+        "preferred_sign_in_strategy": {
+          "type": "string"
+        },
+        "privacy_policy_url": {
+          "type": "null"
+        },
+        "show_devmode_warning": {
+          "type": "boolean"
+        },
+        "sign_in_url": {
+          "type": "string"
+        },
+        "sign_up_url": {
+          "type": "string"
+        },
+        "support_email": {
+          "type": "null"
+        },
+        "terms_url": {
+          "type": "null"
+        },
+        "theme": {
+          "type": "object",
+          "properties": {
+            "accounts": {
+              "type": "object",
+              "properties": {
+                "background_color": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "background_color"
+              ],
+              "additionalProperties": true
+            },
+            "buttons": {
+              "type": "object",
+              "properties": {
+                "font_color": {
+                  "type": "string"
+                },
+                "font_family": {
+                  "type": "string"
+                },
+                "font_weight": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "font_color",
+                "font_family",
+                "font_weight"
+              ],
+              "additionalProperties": true
+            },
+            "general": {
+              "type": "object",
+              "properties": {
+                "background_color": {
+                  "type": "string"
+                },
+                "border_radius": {
+                  "type": "string"
+                },
+                "box_shadow": {
+                  "type": "string"
+                },
+                "color": {
+                  "type": "string"
+                },
+                "font_color": {
+                  "type": "string"
+                },
+                "font_family": {
+                  "type": "string"
+                },
+                "label_font_weight": {
+                  "type": "string"
+                },
+                "padding": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "background_color",
+                "border_radius",
+                "box_shadow",
+                "color",
+                "font_color",
+                "font_family",
+                "label_font_weight",
+                "padding"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "accounts",
+            "buttons",
+            "general"
+          ],
+          "additionalProperties": true
+        },
+        "user_profile_url": {
+          "type": "string"
+        },
+        "waitlist_url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "after_create_organization_url",
+        "after_join_waitlist_url",
+        "after_leave_organization_url",
+        "after_sign_in_url",
+        "after_sign_out_all_url",
+        "after_sign_out_one_url",
+        "after_sign_up_url",
+        "after_switch_session_url",
+        "application_name",
+        "branded",
+        "captcha_oauth_bypass",
+        "captcha_provider",
+        "captcha_public_key",
+        "captcha_public_key_invisible",
+        "captcha_widget_type",
+        "clerk_js_version",
+        "create_organization_url",
+        "experimental_force_oauth_first",
+        "favicon_image",
+        "favicon_image_url",
+        "favicon_url",
+        "google_one_tap_client_id",
+        "help_url",
+        "home_url",
+        "id",
+        "instance_environment_type",
+        "logo_image",
+        "logo_image_url",
+        "logo_link_url",
+        "logo_url",
+        "object",
+        "organization_profile_url",
+        "preferred_sign_in_strategy",
+        "privacy_policy_url",
+        "show_devmode_warning",
+        "sign_in_url",
+        "sign_up_url",
+        "support_email",
+        "terms_url",
+        "theme",
+        "user_profile_url",
+        "waitlist_url"
+      ],
+      "additionalProperties": true
+    },
+    "fraud_settings": {
+      "type": "object",
+      "properties": {
+        "native": {
+          "type": "object",
+          "properties": {
+            "device_attestation_mode": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "device_attestation_mode"
+          ],
+          "additionalProperties": true
+        },
+        "object": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "native",
+        "object"
+      ],
+      "additionalProperties": true
+    },
+    "maintenance_mode": {
+      "type": "boolean"
+    },
+    "organization_settings": {
+      "type": "object",
+      "properties": {
+        "actions": {
+          "type": "object",
+          "properties": {
+            "admin_delete": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "admin_delete"
+          ],
+          "additionalProperties": true
+        },
+        "creator_role": {
+          "type": "string"
+        },
+        "domains": {
+          "type": "object",
+          "properties": {
+            "default_role": {
+              "type": "string"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "enrollment_modes": {
+              "type": "array",
+              "items": {}
+            }
+          },
+          "required": [
+            "default_role",
+            "enabled",
+            "enrollment_modes"
+          ],
+          "additionalProperties": true
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "force_organization_selection": {
+          "type": "boolean"
+        },
+        "max_allowed_memberships": {
+          "type": "number"
+        },
+        "organization_creation_defaults": {
+          "type": "object",
+          "properties": {
+            "automatic_organization_creation": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ],
+              "additionalProperties": true
+            },
+            "detect_from_email_domain": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ],
+              "additionalProperties": true
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "fallback": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "additionalProperties": true
+            },
+            "organization_name_template": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "template": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "enabled",
+                "template"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "automatic_organization_creation",
+            "detect_from_email_domain",
+            "enabled",
+            "fallback",
+            "organization_name_template"
+          ],
+          "additionalProperties": true
+        },
+        "slug": {
+          "type": "object",
+          "properties": {
+            "disabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "disabled"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "actions",
+        "creator_role",
+        "domains",
+        "enabled",
+        "force_organization_selection",
+        "max_allowed_memberships",
+        "organization_creation_defaults",
+        "slug"
+      ],
+      "additionalProperties": true
+    },
+    "partitioned_cookies": {
+      "type": "boolean"
+    },
+    "user_settings": {
+      "type": "object",
+      "properties": {
+        "actions": {
+          "type": "object",
+          "properties": {
+            "create_organization": {
+              "type": "boolean"
+            },
+            "create_organizations_limit": {
+              "type": "null"
+            },
+            "delete_self": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "create_organization",
+            "create_organizations_limit",
+            "delete_self"
+          ],
+          "additionalProperties": true
+        },
+        "attack_protection": {
+          "type": "object",
+          "properties": {
+            "email_link": {
+              "type": "object",
+              "properties": {
+                "require_same_client": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "require_same_client"
+              ],
+              "additionalProperties": true
+            },
+            "enumeration_protection": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ],
+              "additionalProperties": true
+            },
+            "pii": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ],
+              "additionalProperties": true
+            },
+            "user_lockout": {
+              "type": "object",
+              "properties": {
+                "duration_in_minutes": {
+                  "type": "number"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "max_attempts": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "duration_in_minutes",
+                "enabled",
+                "max_attempts"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "email_link",
+            "enumeration_protection",
+            "pii",
+            "user_lockout"
+          ],
+          "additionalProperties": true
+        },
+        "attributes": {
+          "type": "object",
+          "properties": {
+            "authenticator_app": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "first_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "immutable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "second_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "used_for_first_factor": {
+                  "type": "boolean"
+                },
+                "used_for_second_factor": {
+                  "type": "boolean"
+                },
+                "verifications": {
+                  "type": "array",
+                  "items": {}
+                },
+                "verify_at_sign_up": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "first_factors",
+                "immutable",
+                "required",
+                "second_factors",
+                "used_for_first_factor",
+                "used_for_second_factor",
+                "verifications",
+                "verify_at_sign_up"
+              ],
+              "additionalProperties": true
+            },
+            "backup_code": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "first_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "immutable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "second_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "used_for_first_factor": {
+                  "type": "boolean"
+                },
+                "used_for_second_factor": {
+                  "type": "boolean"
+                },
+                "verifications": {
+                  "type": "array",
+                  "items": {}
+                },
+                "verify_at_sign_up": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "first_factors",
+                "immutable",
+                "required",
+                "second_factors",
+                "used_for_first_factor",
+                "used_for_second_factor",
+                "verifications",
+                "verify_at_sign_up"
+              ],
+              "additionalProperties": true
+            },
+            "email_address": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "first_factors": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "immutable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "second_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "used_for_first_factor": {
+                  "type": "boolean"
+                },
+                "used_for_second_factor": {
+                  "type": "boolean"
+                },
+                "verifications": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "verify_at_sign_up": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "first_factors",
+                "immutable",
+                "required",
+                "second_factors",
+                "used_for_first_factor",
+                "used_for_second_factor",
+                "verifications",
+                "verify_at_sign_up"
+              ],
+              "additionalProperties": true
+            },
+            "first_name": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "first_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "immutable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "second_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "used_for_first_factor": {
+                  "type": "boolean"
+                },
+                "used_for_second_factor": {
+                  "type": "boolean"
+                },
+                "verifications": {
+                  "type": "array",
+                  "items": {}
+                },
+                "verify_at_sign_up": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "first_factors",
+                "immutable",
+                "required",
+                "second_factors",
+                "used_for_first_factor",
+                "used_for_second_factor",
+                "verifications",
+                "verify_at_sign_up"
+              ],
+              "additionalProperties": true
+            },
+            "last_name": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "first_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "immutable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "second_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "used_for_first_factor": {
+                  "type": "boolean"
+                },
+                "used_for_second_factor": {
+                  "type": "boolean"
+                },
+                "verifications": {
+                  "type": "array",
+                  "items": {}
+                },
+                "verify_at_sign_up": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "first_factors",
+                "immutable",
+                "required",
+                "second_factors",
+                "used_for_first_factor",
+                "used_for_second_factor",
+                "verifications",
+                "verify_at_sign_up"
+              ],
+              "additionalProperties": true
+            },
+            "passkey": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "first_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "immutable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "second_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "used_for_first_factor": {
+                  "type": "boolean"
+                },
+                "used_for_second_factor": {
+                  "type": "boolean"
+                },
+                "verifications": {
+                  "type": "array",
+                  "items": {}
+                },
+                "verify_at_sign_up": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "first_factors",
+                "immutable",
+                "required",
+                "second_factors",
+                "used_for_first_factor",
+                "used_for_second_factor",
+                "verifications",
+                "verify_at_sign_up"
+              ],
+              "additionalProperties": true
+            },
+            "password": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "first_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "immutable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "second_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "used_for_first_factor": {
+                  "type": "boolean"
+                },
+                "used_for_second_factor": {
+                  "type": "boolean"
+                },
+                "verifications": {
+                  "type": "array",
+                  "items": {}
+                },
+                "verify_at_sign_up": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "first_factors",
+                "immutable",
+                "required",
+                "second_factors",
+                "used_for_first_factor",
+                "used_for_second_factor",
+                "verifications",
+                "verify_at_sign_up"
+              ],
+              "additionalProperties": true
+            },
+            "phone_number": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "first_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "immutable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "second_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "used_for_first_factor": {
+                  "type": "boolean"
+                },
+                "used_for_second_factor": {
+                  "type": "boolean"
+                },
+                "verifications": {
+                  "type": "array",
+                  "items": {}
+                },
+                "verify_at_sign_up": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "first_factors",
+                "immutable",
+                "required",
+                "second_factors",
+                "used_for_first_factor",
+                "used_for_second_factor",
+                "verifications",
+                "verify_at_sign_up"
+              ],
+              "additionalProperties": true
+            },
+            "ticket": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "first_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "immutable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "second_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "used_for_first_factor": {
+                  "type": "boolean"
+                },
+                "used_for_second_factor": {
+                  "type": "boolean"
+                },
+                "verifications": {
+                  "type": "array",
+                  "items": {}
+                },
+                "verify_at_sign_up": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "first_factors",
+                "immutable",
+                "required",
+                "second_factors",
+                "used_for_first_factor",
+                "used_for_second_factor",
+                "verifications",
+                "verify_at_sign_up"
+              ],
+              "additionalProperties": true
+            },
+            "username": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "first_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "immutable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "second_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "used_for_first_factor": {
+                  "type": "boolean"
+                },
+                "used_for_second_factor": {
+                  "type": "boolean"
+                },
+                "verifications": {
+                  "type": "array",
+                  "items": {}
+                },
+                "verify_at_sign_up": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "first_factors",
+                "immutable",
+                "required",
+                "second_factors",
+                "used_for_first_factor",
+                "used_for_second_factor",
+                "verifications",
+                "verify_at_sign_up"
+              ],
+              "additionalProperties": true
+            },
+            "web3_wallet": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "first_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "immutable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "second_factors": {
+                  "type": "array",
+                  "items": {}
+                },
+                "used_for_first_factor": {
+                  "type": "boolean"
+                },
+                "used_for_second_factor": {
+                  "type": "boolean"
+                },
+                "verifications": {
+                  "type": "array",
+                  "items": {}
+                },
+                "verify_at_sign_up": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled",
+                "first_factors",
+                "immutable",
+                "required",
+                "second_factors",
+                "used_for_first_factor",
+                "used_for_second_factor",
+                "verifications",
+                "verify_at_sign_up"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "authenticator_app",
+            "backup_code",
+            "email_address",
+            "first_name",
+            "last_name",
+            "passkey",
+            "password",
+            "phone_number",
+            "ticket",
+            "username",
+            "web3_wallet"
+          ],
+          "additionalProperties": true
+        },
+        "enterprise_sso": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "self_serve_sso": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled",
+            "self_serve_sso"
+          ],
+          "additionalProperties": true
+        },
+        "passkey_settings": {
+          "type": "object",
+          "properties": {
+            "allow_autofill": {
+              "type": "boolean"
+            },
+            "show_sign_in_button": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "allow_autofill",
+            "show_sign_in_button"
+          ],
+          "additionalProperties": true
+        },
+        "password_settings": {
+          "type": "object",
+          "properties": {
+            "allowed_special_characters": {
+              "type": "string"
+            },
+            "disable_hibp": {
+              "type": "boolean"
+            },
+            "enforce_hibp_on_sign_in": {
+              "type": "boolean"
+            },
+            "max_length": {
+              "type": "number"
+            },
+            "min_length": {
+              "type": "number"
+            },
+            "min_zxcvbn_strength": {
+              "type": "number"
+            },
+            "require_lowercase": {
+              "type": "boolean"
+            },
+            "require_numbers": {
+              "type": "boolean"
+            },
+            "require_special_char": {
+              "type": "boolean"
+            },
+            "require_uppercase": {
+              "type": "boolean"
+            },
+            "show_zxcvbn": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "allowed_special_characters",
+            "disable_hibp",
+            "enforce_hibp_on_sign_in",
+            "max_length",
+            "min_length",
+            "min_zxcvbn_strength",
+            "require_lowercase",
+            "require_numbers",
+            "require_special_char",
+            "require_uppercase",
+            "show_zxcvbn"
+          ],
+          "additionalProperties": true
+        },
+        "restrictions": {
+          "type": "object",
+          "properties": {
+            "allowlist": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ],
+              "additionalProperties": true
+            },
+            "allowlist_blocklist_disabled_on_sign_in": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ],
+              "additionalProperties": true
+            },
+            "block_disposable_email_domains": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ],
+              "additionalProperties": true
+            },
+            "block_email_subaddresses": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ],
+              "additionalProperties": true
+            },
+            "blocklist": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "enabled"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "allowlist",
+            "allowlist_blocklist_disabled_on_sign_in",
+            "block_disposable_email_domains",
+            "block_email_subaddresses",
+            "blocklist"
+          ],
+          "additionalProperties": true
+        },
+        "saml": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "additionalProperties": true
+        },
+        "sign_in": {
+          "type": "object",
+          "properties": {
+            "second_factor": {
+              "type": "object",
+              "properties": {
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "required"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "second_factor"
+          ],
+          "additionalProperties": true
+        },
+        "sign_up": {
+          "type": "object",
+          "properties": {
+            "captcha_enabled": {
+              "type": "boolean"
+            },
+            "captcha_widget_type": {
+              "type": "string"
+            },
+            "custom_action_required": {
+              "type": "boolean"
+            },
+            "legal_consent_enabled": {
+              "type": "boolean"
+            },
+            "mfa": {
+              "type": "object",
+              "properties": {
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "required"
+              ],
+              "additionalProperties": true
+            },
+            "mode": {
+              "type": "string"
+            },
+            "progressive": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "captcha_enabled",
+            "captcha_widget_type",
+            "custom_action_required",
+            "legal_consent_enabled",
+            "mfa",
+            "mode",
+            "progressive"
+          ],
+          "additionalProperties": true
+        },
+        "social": {
+          "type": "object",
+          "properties": {
+            "oauth_google": {
+              "type": "object",
+              "properties": {
+                "authenticatable": {
+                  "type": "boolean"
+                },
+                "block_email_subaddresses": {
+                  "type": "boolean"
+                },
+                "deprecated": {
+                  "type": "boolean"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "logo_url": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "not_selectable": {
+                  "type": "boolean"
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "strategy": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "authenticatable",
+                "block_email_subaddresses",
+                "deprecated",
+                "enabled",
+                "logo_url",
+                "name",
+                "not_selectable",
+                "required",
+                "strategy"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "required": [
+            "oauth_google"
+          ],
+          "additionalProperties": true
+        },
+        "username_settings": {
+          "type": "object",
+          "properties": {
+            "allow_extended_special_characters": {
+              "type": "boolean"
+            },
+            "max_length": {
+              "type": "number"
+            },
+            "min_length": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "allow_extended_special_characters",
+            "max_length",
+            "min_length"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "actions",
+        "attack_protection",
+        "attributes",
+        "enterprise_sso",
+        "passkey_settings",
+        "password_settings",
+        "restrictions",
+        "saml",
+        "sign_in",
+        "sign_up",
+        "social",
+        "username_settings"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "api_keys_settings",
+    "auth_config",
+    "client_debug_mode",
+    "commerce_settings",
+    "display_config",
+    "fraud_settings",
+    "maintenance_mode",
+    "organization_settings",
+    "partitioned_cookies",
+    "user_settings"
+  ],
+  "additionalProperties": true
+}

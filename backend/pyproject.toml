@@ -1,0 +1,28 @@
+[project]
+name = "rag-service-backend"
+version = "0.1.0"
+description = "FastAPI backend foundation for the RAG service."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.111.0",
+    "pydantic-settings>=2.2.1",
+    "pyjwt[crypto]>=2.8.0",
+    "uvicorn[standard]>=0.29.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.27.0",
+    "pytest>=8.2.0",
+    "ruff>=0.4.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

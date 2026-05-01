@@ -1,0 +1,66 @@
+{
+  "type": "object",
+  "properties": {
+    "client": {
+      "type": "null"
+    },
+    "response": {
+      "type": "object",
+      "properties": {
+        "captcha_bypass": {
+          "type": "boolean"
+        },
+        "cookie_expires_at": {
+          "type": "null"
+        },
+        "created_at": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "last_active_session_id": {
+          "type": "null"
+        },
+        "last_authentication_strategy": {
+          "type": "null"
+        },
+        "object": {
+          "type": "string"
+        },
+        "sessions": {
+          "type": "array",
+          "items": {}
+        },
+        "sign_in": {
+          "type": "null"
+        },
+        "sign_up": {
+          "type": "null"
+        },
+        "updated_at": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "captcha_bypass",
+        "cookie_expires_at",
+        "created_at",
+        "id",
+        "last_active_session_id",
+        "last_authentication_strategy",
+        "object",
+        "sessions",
+        "sign_in",
+        "sign_up",
+        "updated_at"
+      ],
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "client",
+    "response"
+  ],
+  "additionalProperties": true
+}
