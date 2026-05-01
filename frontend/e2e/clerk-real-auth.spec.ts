@@ -8,13 +8,7 @@ import {
   schemaFromValue,
   writeSchema
 } from "./schema-utils";
-
-const publicSchemas = {
-  environment: "./schemas/clerk.environment.schema.json",
-  client: "./schemas/clerk.client.unauthenticated.schema.json",
-  backendUnauthorized: "./schemas/backend.me.unauthenticated.schema.json",
-  backendAuthenticated: "./schemas/backend.me.authenticated.schema.json"
-};
+import { schemaPaths } from "./schema-paths";
 
 test("captures real public Clerk environment schema", async ({ request }) => {
   test.skip(
@@ -26,7 +20,7 @@ test("captures real public Clerk environment schema", async ({ request }) => {
 
   const environment = await request.get(`https://${frontendApiHost}/v1/environment`);
   await expectJsonOk(environment, "Clerk /v1/environment");
-  await assertOrWriteSchema(publicSchemas.environment, await environment.json());
+  await assertOrWriteSchema(schemaPaths.environment, await environment.json());
 });
 
 test("captures real browser Clerk client schema", async ({ page }) => {
@@ -49,18 +43,18 @@ test("captures real browser Clerk client schema", async ({ page }) => {
 
   const environment = await environmentPromise;
   await expectJsonOk(environment, "Browser Clerk /v1/environment");
-  await assertOrWriteSchema(publicSchemas.environment, await environment.json());
+  await assertOrWriteSchema(schemaPaths.environment, await environment.json());
 
   const client = await clientPromise;
   await expectJsonOk(client, "Browser Clerk /v1/client");
-  await assertOrWriteSchema(publicSchemas.client, await client.json());
+  await assertOrWriteSchema(schemaPaths.client, await client.json());
 });
 
 test("captures unauthenticated backend auth-contract schema", async ({ request }) => {
   const response = await request.get(`${apiBaseUrl()}/api/me`);
 
   expect(response.status()).toBe(401);
-  await assertOrWriteSchema(publicSchemas.backendUnauthorized, await response.json());
+  await assertOrWriteSchema(schemaPaths.backendUnauthorized, await response.json());
 });
 
 test("signs in through real Clerk UI and captures authenticated schemas", async ({ page }) => {
@@ -105,14 +99,16 @@ test("signs in through real Clerk UI and captures authenticated schemas", async 
     timeout: 45_000
   });
 
+  const meResponsePromise = page.waitForResponse((response) => response.url().includes("/api/me") && response.ok());
+
   await page.getByRole("button", { name: "Check /api/me" }).click();
   await expect(page.getByText("Backend accepted the Clerk session token.")).toBeVisible({
     timeout: 30_000
   });
 
-  const meResponse = await page.waitForResponse((response) => response.url().includes("/api/me") && response.ok());
+  const meResponse = await meResponsePromise;
   const meBody = await meResponse.json();
-  await assertOrWriteSchema(publicSchemas.backendAuthenticated, meBody);
+  await assertOrWriteSchema(schemaPaths.backendAuthenticated, meBody);
 
   if (shouldWriteSchemas()) {
     for (const [name, value] of observedSchemas) {

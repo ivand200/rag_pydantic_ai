@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "properties": {
+    "email": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "first_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "last_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "session_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "user_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "email",
+    "first_name",
+    "last_name",
+    "session_id",
+    "user_id"
+  ],
+  "additionalProperties": true
+}
