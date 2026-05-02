@@ -1,13 +1,14 @@
-export interface CurrentUser {
-  user_id: string;
-  session_id?: string | null;
+export interface AppUser {
+  id: string;
   email?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
 }
 
 export interface ApiStatus {
   state: "idle" | "loading" | "ready" | "error";
   message: string;
-  user?: CurrentUser;
+  user?: AppUser;
 }
 
 export class ApiError extends Error {
@@ -24,7 +25,7 @@ export type ClerkTokenProvider = () => Promise<string | null>;
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000").replace(/\/$/, "");
 
-export async function fetchCurrentUser(getToken: ClerkTokenProvider): Promise<CurrentUser> {
+export async function fetchCurrentUser(getToken: ClerkTokenProvider): Promise<AppUser> {
   const token = await getToken();
 
   if (!token) {
@@ -42,7 +43,7 @@ export async function fetchCurrentUser(getToken: ClerkTokenProvider): Promise<Cu
     throw new ApiError(response.status, await readErrorMessage(response));
   }
 
-  return response.json() as Promise<CurrentUser>;
+  return response.json() as Promise<AppUser>;
 }
 
 async function readErrorMessage(response: Response): Promise<string> {

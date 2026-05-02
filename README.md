@@ -1,6 +1,6 @@
 # RAG Service
 
-Iteration 1 is a FastAPI backend, Vite Vue/DaisyUI frontend, Clerk authentication shell, and local Docker Compose runtime. Clerk is external, and there is no local Postgres service in this iteration.
+Iteration 1 is a FastAPI backend, Vite Vue/DaisyUI frontend, Clerk authentication shell, Postgres-backed local app user persistence, and local Docker Compose runtime. Clerk remains external for authentication and sessions.
 
 ## Configuration
 
@@ -19,6 +19,8 @@ Runtime wiring:
 
 - `VITE_API_BASE_URL`: browser-facing backend URL. The Compose default is `http://localhost:8000`.
 - `BACKEND_CORS_ORIGINS`: comma-separated browser origins allowed to call the backend. The default is `http://localhost:5173`.
+- `DATABASE_URL`: SQLAlchemy/Postgres URL used by FastAPI and Alembic. The direct local default is `postgresql+psycopg://rag_service:rag_service@localhost:5432/rag_service`.
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: local Docker Compose Postgres initialization values.
 
 Future RAG settings are documented but unused in iteration 1:
 
@@ -36,16 +38,32 @@ docker compose up --build
 
 The frontend runs at `http://localhost:5173`.
 The backend runs at `http://localhost:8000`, with health available at `http://localhost:8000/health`.
+Postgres runs on `localhost:5432`.
 
-Clerk sign-in and sign-up happen through Clerk-hosted flows in the frontend. The frontend sends Clerk session tokens to the backend as `Authorization: Bearer <token>` when calling protected routes such as `GET /api/me`.
+Apply database migrations after the database is healthy:
+
+```sh
+cd backend
+uv run alembic upgrade head
+```
+
+Clerk sign-in and sign-up happen through Clerk-hosted flows in the frontend. The frontend sends Clerk session tokens to the backend as `Authorization: Bearer <token>` when calling protected routes such as `GET /api/me`. The backend verifies the Clerk token, creates or updates the local `app_users` row, and returns the local app user identity.
+
+To reset the local database destructively:
+
+```sh
+docker compose down -v
+```
 
 ## Direct Development
 
 Backend:
 
 ```sh
+docker compose up -d postgres
 cd backend
 uv sync
+uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -63,6 +81,7 @@ Backend tests:
 
 ```sh
 cd backend
+uv run alembic upgrade head
 uv run pytest
 ```
 

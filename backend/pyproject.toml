@@ -4,9 +4,12 @@ version = "0.1.0"
 description = "FastAPI backend foundation for the RAG service."
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.13.2",
     "fastapi>=0.111.0",
+    "psycopg[binary]>=3.2.1",
     "pydantic-settings>=2.2.1",
     "pyjwt[crypto]>=2.8.0",
+    "sqlalchemy>=2.0.31",
     "uvicorn[standard]>=0.29.0",
 ]
 

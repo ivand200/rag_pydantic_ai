@@ -19,22 +19,15 @@
         "null"
       ]
     },
-    "session_id": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "user_id": {
+    "id": {
       "type": "string"
     }
   },
   "required": [
     "email",
     "first_name",
-    "last_name",
-    "session_id",
-    "user_id"
+    "id",
+    "last_name"
   ],
   "additionalProperties": true
 }

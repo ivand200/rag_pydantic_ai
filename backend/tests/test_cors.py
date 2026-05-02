@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 from fastapi.testclient import TestClient
+from sqlalchemy.engine import Engine
 
 from app.core.config import get_settings
 from app.main import create_app
@@ -28,6 +29,7 @@ def test_cors_preflight_allows_frontend_authorization_header(client: TestClient)
 def test_protected_response_exposes_cors_headers_for_frontend_origin(
     client: TestClient,
     make_clerk_token: Callable[..., str],
+    migrated_database: Engine,
 ) -> None:
     token = make_clerk_token()
 

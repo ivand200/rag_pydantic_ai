@@ -47,7 +47,7 @@ async function checkBackendIdentity() {
     const currentUser = await fetchCurrentUser(() => auth.getToken.value());
     apiStatus.value = {
       state: "ready",
-      message: "Backend accepted the Clerk session token.",
+      message: "Backend synced the local app user.",
       user: currentUser
     };
   } catch (error) {
@@ -192,14 +192,18 @@ async function checkBackendIdentity() {
 
                 <dl v-if="apiStatus.user" class="mt-5 grid gap-3 text-sm sm:grid-cols-2">
                   <div class="rounded-box bg-base-100 p-4">
-                    <dt class="font-medium text-base-content/60">User ID</dt>
-                    <dd class="mt-1 break-all font-mono">{{ apiStatus.user.user_id }}</dd>
+                    <dt class="font-medium text-base-content/60">App User ID</dt>
+                    <dd class="mt-1 break-all font-mono">{{ apiStatus.user.id }}</dd>
                   </div>
                   <div class="rounded-box bg-base-100 p-4">
-                    <dt class="font-medium text-base-content/60">Session ID</dt>
-                    <dd class="mt-1 break-all font-mono">{{ apiStatus.user.session_id ?? "Not returned" }}</dd>
+                    <dt class="font-medium text-base-content/60">First Name</dt>
+                    <dd class="mt-1 break-all font-mono">{{ apiStatus.user.first_name ?? "Not returned" }}</dd>
                   </div>
-                  <div class="rounded-box bg-base-100 p-4 sm:col-span-2">
+                  <div class="rounded-box bg-base-100 p-4">
+                    <dt class="font-medium text-base-content/60">Last Name</dt>
+                    <dd class="mt-1 break-all font-mono">{{ apiStatus.user.last_name ?? "Not returned" }}</dd>
+                  </div>
+                  <div class="rounded-box bg-base-100 p-4">
                     <dt class="font-medium text-base-content/60">Email</dt>
                     <dd class="mt-1 break-all font-mono">{{ apiStatus.user.email ?? "Not returned" }}</dd>
                   </div>

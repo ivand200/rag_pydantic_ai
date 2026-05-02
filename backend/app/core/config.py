@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     app_name: str = "rag-service-backend"
     clerk_jwt_public_key: str | None = None
     backend_cors_origins: str = "http://localhost:5173"
+    database_url: str = "postgresql+psycopg://rag_service:rag_service@localhost:5432/rag_service"
 
     @property
     def backend_cors_origin_list(self) -> list[str]:

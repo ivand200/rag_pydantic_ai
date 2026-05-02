@@ -102,7 +102,7 @@ test("signs in through real Clerk UI and captures authenticated schemas", async 
   const meResponsePromise = page.waitForResponse((response) => response.url().includes("/api/me") && response.ok());
 
   await page.getByRole("button", { name: "Check /api/me" }).click();
-  await expect(page.getByText("Backend accepted the Clerk session token.")).toBeVisible({
+  await expect(page.getByText("Backend synced the local app user.")).toBeVisible({
     timeout: 30_000
   });
 

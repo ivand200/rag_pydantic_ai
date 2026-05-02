@@ -9,6 +9,8 @@ ENV PYTHONUNBUFFERED=1 \
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
+COPY alembic ./alembic
+COPY alembic.ini ./
 COPY app ./app
 
 EXPOSE 8000
