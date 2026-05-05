@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "properties": {
+    "document_id": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    }
+  },
+  "required": ["document_id", "method", "path"],
+  "additionalProperties": true
+}

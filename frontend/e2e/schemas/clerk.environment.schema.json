@@ -14,11 +14,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "enabled",
-        "orgs_api_keys_enabled",
-        "user_api_keys_enabled"
-      ],
+      "required": ["enabled", "orgs_api_keys_enabled", "user_api_keys_enabled"],
       "additionalProperties": true
     },
     "auth_config": {
@@ -147,10 +143,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "enabled",
-                "has_paid_plans"
-              ],
+              "required": ["enabled", "has_paid_plans"],
               "additionalProperties": true
             },
             "stripe_publishable_key": {
@@ -166,10 +159,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "enabled",
-                "has_paid_plans"
-              ],
+              "required": ["enabled", "has_paid_plans"],
               "additionalProperties": true
             }
           },
@@ -182,9 +172,7 @@
           "additionalProperties": true
         }
       },
-      "required": [
-        "billing"
-      ],
+      "required": ["billing"],
       "additionalProperties": true
     },
     "display_config": {
@@ -318,9 +306,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "background_color"
-              ],
+              "required": ["background_color"],
               "additionalProperties": true
             },
             "buttons": {
@@ -336,11 +322,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "font_color",
-                "font_family",
-                "font_weight"
-              ],
+              "required": ["font_color", "font_family", "font_weight"],
               "additionalProperties": true
             },
             "general": {
@@ -384,11 +366,7 @@
               "additionalProperties": true
             }
           },
-          "required": [
-            "accounts",
-            "buttons",
-            "general"
-          ],
+          "required": ["accounts", "buttons", "general"],
           "additionalProperties": true
         },
         "user_profile_url": {
@@ -454,19 +432,14 @@
               "type": "string"
             }
           },
-          "required": [
-            "device_attestation_mode"
-          ],
+          "required": ["device_attestation_mode"],
           "additionalProperties": true
         },
         "object": {
           "type": "string"
         }
       },
-      "required": [
-        "native",
-        "object"
-      ],
+      "required": ["native", "object"],
       "additionalProperties": true
     },
     "maintenance_mode": {
@@ -482,9 +455,7 @@
               "type": "boolean"
             }
           },
-          "required": [
-            "admin_delete"
-          ],
+          "required": ["admin_delete"],
           "additionalProperties": true
         },
         "creator_role": {
@@ -504,11 +475,7 @@
               "items": {}
             }
           },
-          "required": [
-            "default_role",
-            "enabled",
-            "enrollment_modes"
-          ],
+          "required": ["default_role", "enabled", "enrollment_modes"],
           "additionalProperties": true
         },
         "enabled": {
@@ -530,9 +497,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "enabled"
-              ],
+              "required": ["enabled"],
               "additionalProperties": true
             },
             "detect_from_email_domain": {
@@ -542,9 +507,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "enabled"
-              ],
+              "required": ["enabled"],
               "additionalProperties": true
             },
             "enabled": {
@@ -557,9 +520,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "name"
-              ],
+              "required": ["name"],
               "additionalProperties": true
             },
             "organization_name_template": {
@@ -572,10 +533,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "enabled",
-                "template"
-              ],
+              "required": ["enabled", "template"],
               "additionalProperties": true
             }
           },
@@ -595,9 +553,7 @@
               "type": "boolean"
             }
           },
-          "required": [
-            "disabled"
-          ],
+          "required": ["disabled"],
           "additionalProperties": true
         }
       },
@@ -632,11 +588,7 @@
               "type": "boolean"
             }
           },
-          "required": [
-            "create_organization",
-            "create_organizations_limit",
-            "delete_self"
-          ],
+          "required": ["create_organization", "create_organizations_limit", "delete_self"],
           "additionalProperties": true
         },
         "attack_protection": {
@@ -649,9 +601,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "require_same_client"
-              ],
+              "required": ["require_same_client"],
               "additionalProperties": true
             },
             "enumeration_protection": {
@@ -661,9 +611,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "enabled"
-              ],
+              "required": ["enabled"],
               "additionalProperties": true
             },
             "pii": {
@@ -673,9 +621,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "enabled"
-              ],
+              "required": ["enabled"],
               "additionalProperties": true
             },
             "user_lockout": {
@@ -691,20 +637,11 @@
                   "type": "number"
                 }
               },
-              "required": [
-                "duration_in_minutes",
-                "enabled",
-                "max_attempts"
-              ],
+              "required": ["duration_in_minutes", "enabled", "max_attempts"],
               "additionalProperties": true
             }
           },
-          "required": [
-            "email_link",
-            "enumeration_protection",
-            "pii",
-            "user_lockout"
-          ],
+          "required": ["email_link", "enumeration_protection", "pii", "user_lockout"],
           "additionalProperties": true
         },
         "attributes": {
@@ -1257,10 +1194,7 @@
               "type": "boolean"
             }
           },
-          "required": [
-            "enabled",
-            "self_serve_sso"
-          ],
+          "required": ["enabled", "self_serve_sso"],
           "additionalProperties": true
         },
         "passkey_settings": {
@@ -1273,10 +1207,7 @@
               "type": "boolean"
             }
           },
-          "required": [
-            "allow_autofill",
-            "show_sign_in_button"
-          ],
+          "required": ["allow_autofill", "show_sign_in_button"],
           "additionalProperties": true
         },
         "password_settings": {
@@ -1341,9 +1272,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "enabled"
-              ],
+              "required": ["enabled"],
               "additionalProperties": true
             },
             "allowlist_blocklist_disabled_on_sign_in": {
@@ -1353,9 +1282,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "enabled"
-              ],
+              "required": ["enabled"],
               "additionalProperties": true
             },
             "block_disposable_email_domains": {
@@ -1365,9 +1292,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "enabled"
-              ],
+              "required": ["enabled"],
               "additionalProperties": true
             },
             "block_email_subaddresses": {
@@ -1377,9 +1302,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "enabled"
-              ],
+              "required": ["enabled"],
               "additionalProperties": true
             },
             "blocklist": {
@@ -1389,9 +1312,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "enabled"
-              ],
+              "required": ["enabled"],
               "additionalProperties": true
             }
           },
@@ -1411,9 +1332,7 @@
               "type": "boolean"
             }
           },
-          "required": [
-            "enabled"
-          ],
+          "required": ["enabled"],
           "additionalProperties": true
         },
         "sign_in": {
@@ -1426,15 +1345,11 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "required"
-              ],
+              "required": ["required"],
               "additionalProperties": true
             }
           },
-          "required": [
-            "second_factor"
-          ],
+          "required": ["second_factor"],
           "additionalProperties": true
         },
         "sign_up": {
@@ -1459,9 +1374,7 @@
                   "type": "boolean"
                 }
               },
-              "required": [
-                "required"
-              ],
+              "required": ["required"],
               "additionalProperties": true
             },
             "mode": {
@@ -1530,9 +1443,7 @@
               "additionalProperties": true
             }
           },
-          "required": [
-            "oauth_google"
-          ],
+          "required": ["oauth_google"],
           "additionalProperties": true
         },
         "username_settings": {
@@ -1548,11 +1459,7 @@
               "type": "number"
             }
           },
-          "required": [
-            "allow_extended_special_characters",
-            "max_length",
-            "min_length"
-          ],
+          "required": ["allow_extended_special_characters", "max_length", "min_length"],
           "additionalProperties": true
         }
       },

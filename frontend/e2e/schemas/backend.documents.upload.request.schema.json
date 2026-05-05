@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "properties": {
+    "content_type": {
+      "type": "string"
+    },
+    "fields": {
+      "type": "object",
+      "properties": {
+        "file": {
+          "type": "object",
+          "properties": {
+            "filename": {
+              "type": "string"
+            },
+            "media_type": {
+              "type": "string"
+            }
+          },
+          "required": ["filename", "media_type"],
+          "additionalProperties": true
+        }
+      },
+      "required": ["file"],
+      "additionalProperties": true
+    },
+    "method": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    }
+  },
+  "required": ["content_type", "fields", "method", "path"],
+  "additionalProperties": true
+}

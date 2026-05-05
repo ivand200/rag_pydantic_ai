@@ -11,6 +11,31 @@ ALTERNATE_FRONTEND_ORIGIN = "http://127.0.0.1:5173"
 UNTRUSTED_ORIGIN = "http://localhost:3000"
 
 
+def test_cors_preflight_allows_configured_methods_and_headers(client: TestClient) -> None:
+    response = client.options(
+        "/api/documents",
+        headers={
+            "Origin": FRONTEND_ORIGIN,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Authorization, Content-Type",
+        },
+    )
+
+    assert response.status_code == 200
+    allows_configured_methods = {
+        "delete",
+        "get",
+        "options",
+        "post",
+    }.issubset(response.headers["access-control-allow-methods"].lower().split(", "))
+    allows_configured_headers = {
+        "authorization",
+        "content-type",
+    }.issubset(response.headers["access-control-allow-headers"].lower().split(", "))
+
+    assert allows_configured_methods and allows_configured_headers
+
+
 def test_cors_preflight_allows_frontend_authorization_header(client: TestClient) -> None:
     response = client.options(
         "/api/me",
@@ -24,6 +49,48 @@ def test_cors_preflight_allows_frontend_authorization_header(client: TestClient)
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == FRONTEND_ORIGIN
     assert "authorization" in response.headers["access-control-allow-headers"].lower()
+
+
+def test_cors_preflight_allows_upcoming_document_upload_contract(client: TestClient) -> None:
+    response = client.options(
+        "/api/documents",
+        headers={
+            "Origin": FRONTEND_ORIGIN,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Authorization, Content-Type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == FRONTEND_ORIGIN
+
+
+def test_cors_preflight_allows_upcoming_document_delete_contract(client: TestClient) -> None:
+    response = client.options(
+        "/api/documents/document-id",
+        headers={
+            "Origin": FRONTEND_ORIGIN,
+            "Access-Control-Request-Method": "DELETE",
+            "Access-Control-Request-Headers": "Authorization",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == FRONTEND_ORIGIN
+
+
+def test_cors_preflight_allows_streaming_chat_contract(client: TestClient) -> None:
+    response = client.options(
+        "/api/chat/sessions/00000000-0000-0000-0000-000000000000/messages/stream",
+        headers={
+            "Origin": FRONTEND_ORIGIN,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Authorization, Content-Type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == FRONTEND_ORIGIN
 
 
 def test_protected_response_exposes_cors_headers_for_frontend_origin(

@@ -87,7 +87,10 @@ export function expectValueMatchesSchema(value: unknown, schema: JsonSchema, pat
 }
 
 export function schemaFileName(name: string) {
-  return name.replace(/[^a-z0-9_.-]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
+  return name
+    .replace(/[^a-z0-9_.-]+/gi, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
 }
 
 function jsonType(value: unknown) {

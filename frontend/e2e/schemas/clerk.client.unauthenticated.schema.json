@@ -58,9 +58,6 @@
       "additionalProperties": true
     }
   },
-  "required": [
-    "client",
-    "response"
-  ],
+  "required": ["client", "response"],
   "additionalProperties": true
 }

@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "message": {
+      "type": "string"
+    },
+    "retryable": {
+      "type": "boolean"
+    }
+  },
+  "required": ["message", "retryable"],
+  "additionalProperties": true
+}

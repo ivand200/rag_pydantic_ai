@@ -2,5 +2,19 @@ export const schemaPaths = {
   environment: "./schemas/clerk.environment.schema.json",
   client: "./schemas/clerk.client.unauthenticated.schema.json",
   backendUnauthorized: "./schemas/backend.me.unauthenticated.schema.json",
-  backendAuthenticated: "./schemas/backend.me.authenticated.schema.json"
+  backendAuthenticated: "./schemas/backend.me.authenticated.schema.json",
+  documentsList: "./schemas/backend.documents.list.schema.json",
+  documentUploadRequest: "./schemas/backend.documents.upload.request.schema.json",
+  documentUpload: "./schemas/backend.documents.upload.schema.json",
+  documentDeleteRequest: "./schemas/backend.documents.delete.request.schema.json",
+  documentDelete: "./schemas/backend.documents.delete.schema.json",
+  chatSessionsList: "./schemas/backend.chat.sessions.list.schema.json",
+  chatSessionCreateRequest: "./schemas/backend.chat.sessions.create.request.schema.json",
+  chatSessionCreate: "./schemas/backend.chat.sessions.create.schema.json",
+  chatSessionLoadRequest: "./schemas/backend.chat.sessions.load.request.schema.json",
+  chatSessionLoad: "./schemas/backend.chat.sessions.load.schema.json",
+  chatMessageStreamRequest: "./schemas/backend.chat.messages.stream.request.schema.json",
+  chatMessageStreamDelta: "./schemas/backend.chat.messages.stream.delta.schema.json",
+  chatMessageStreamFinal: "./schemas/backend.chat.messages.stream.final.schema.json",
+  chatMessageStreamError: "./schemas/backend.chat.messages.stream.error.schema.json"
 };

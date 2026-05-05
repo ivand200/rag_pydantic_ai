@@ -1,66 +1,76 @@
 # RAG Service
 
-Iteration 1 is a FastAPI backend, Vite Vue/DaisyUI frontend, Clerk authentication shell, Postgres-backed local app user persistence, and local Docker Compose runtime. Clerk remains external for authentication and sessions.
+FastAPI, Vue, Clerk, Postgres/pgvector, MinIO, and Pydantic AI working together as a small internal RAG workspace. Authenticated users upload shared documents, ask grounded questions, keep their own chat sessions, and review source citations returned with each answer.
 
-## Configuration
+![RAG Architect workspace](pydantic_ai_rag.png)
 
-Create a local `.env` from `.env.example` and fill the Clerk values:
+## What It Does
+
+- Clerk-backed sign in, sign up, and sign out.
+- Protected FastAPI API with local `app_users` projection for app-owned records.
+- Shared document pool for `.txt`, `.md`, and `.pdf` uploads.
+- Any authenticated user can deliberately delete any shared document.
+- Background ingestion worker extracts text, chunks documents, creates embeddings, and writes retrieval-ready vectors.
+- Postgres with pgvector stores documents, chunks, embeddings, chat sessions, messages, and citations.
+- Pydantic AI rewrites conversational questions and generates source-grounded answers.
+- Streaming chat returns `delta`, `final`, and `error` SSE events.
+- Deterministic backend evals validate retrieval, citations, no-source behavior, deleted-document exclusion, and query rewrite wiring.
+
+## Architecture
+
+```text
+Vue + Clerk
+  |
+  | Bearer Clerk session token
+  v
+FastAPI API
+  |-- /api/me syncs local app user
+  |-- /api/documents uploads, lists, tombstones shared documents
+  |-- /api/chat/sessions stores user-owned sessions and streams answers
+  |
+  | metadata, chat, vectors
+  v
+Postgres + pgvector
+
+MinIO stores original uploaded files.
+Worker claims ingestion jobs with SKIP LOCKED, extracts text, chunks, embeds, and marks documents ready.
+OpenAI-backed Pydantic AI services handle query rewrite and answer generation.
+```
+
+## Quickstart
+
+Create local configuration:
 
 ```sh
 cp .env.example .env
 ```
 
-Required for Clerk auth:
+Fill these values in `.env`:
 
-- `VITE_CLERK_PUBLISHABLE_KEY`: Clerk publishable key for the Vue app.
-- `CLERK_JWT_PUBLIC_KEY`: Clerk JWT public key used by FastAPI to verify bearer tokens.
-
-Runtime wiring:
-
-- `VITE_API_BASE_URL`: browser-facing backend URL. The Compose default is `http://localhost:8000`.
-- `BACKEND_CORS_ORIGINS`: comma-separated browser origins allowed to call the backend. The default is `http://localhost:5173`.
-- `DATABASE_URL`: SQLAlchemy/Postgres URL used by FastAPI and Alembic. The direct local default is `postgresql+psycopg://rag_service:rag_service@localhost:5432/rag_service`.
-- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: local Docker Compose Postgres initialization values.
-
-Future RAG settings are documented but unused in iteration 1:
-
+- `VITE_CLERK_PUBLISHABLE_KEY`
+- `CLERK_JWT_PUBLIC_KEY`
 - `OPENAI_API_KEY`
-- `OPENAI_BASE_URL`
-- `CHAT_MODEL`
 
-## Run With Docker Compose
-
-Start the full local stack:
+Start the full stack:
 
 ```sh
 docker compose up --build
 ```
 
-The frontend runs at `http://localhost:5173`.
-The backend runs at `http://localhost:8000`, with health available at `http://localhost:8000/health`.
-Postgres runs on `localhost:5432`.
+Open:
 
-Apply database migrations after the database is healthy:
+- Frontend: `http://localhost:5173`
+- Backend health: `http://localhost:8000/health`
+- MinIO console: `http://localhost:9001`
 
-```sh
-cd backend
-uv run alembic upgrade head
-```
+Compose also starts Postgres, runs Alembic migrations, creates the MinIO bucket, and starts the ingestion worker.
 
-Clerk sign-in and sign-up happen through Clerk-hosted flows in the frontend. The frontend sends Clerk session tokens to the backend as `Authorization: Bearer <token>` when calling protected routes such as `GET /api/me`. The backend verifies the Clerk token, creates or updates the local `app_users` row, and returns the local app user identity.
-
-To reset the local database destructively:
-
-```sh
-docker compose down -v
-```
-
-## Direct Development
+## Local Development
 
 Backend:
 
 ```sh
-docker compose up -d postgres
+docker compose up -d postgres minio minio-init
 cd backend
 uv sync
 uv run alembic upgrade head
@@ -77,33 +87,56 @@ npm run dev
 
 ## Checks
 
-Backend tests:
+Run the main validation path:
 
 ```sh
-cd backend
-uv run alembic upgrade head
-uv run pytest
+make test
 ```
 
-Frontend type check and build:
+Useful focused checks:
 
 ```sh
-cd frontend
-npm run type-check
-npm run build
+make backend-test
+make evals
+make frontend-check
+make e2e
 ```
 
-Opt-in real Clerk e2e schema capture:
+The backend tests and evals use `TEST_DATABASE_URL` and refuse to run destructively against the main `DATABASE_URL`.
+
+Advanced contract checks:
 
 ```sh
-cd frontend
-E2E_WRITE_SCHEMAS=1 npm run e2e:clerk
+make e2e-clerk
+make e2e-schema-capture
 ```
 
-The public Clerk environment schema and unauthenticated backend auth schema run with the existing publishable key. Browser-origin Clerk client and signed-in `/api/me` schema capture require `CLERK_TESTING_TOKEN` or `CLERK_SECRET_KEY`; signed-in capture also requires `E2E_CLERK_USER_EMAIL` and `E2E_CLERK_USER_PASSWORD`.
+`e2e-clerk` validates the real Clerk/browser/backend auth contract when Clerk credentials are configured. `e2e-schema-capture` is opt-in for refreshing real document/chat API schema fixtures from a configured local stack.
 
-Docker Compose validation:
+## Configuration Notes
 
-```sh
-docker compose config
-```
+Core auth and runtime:
+
+- `VITE_API_BASE_URL`
+- `BACKEND_CORS_ORIGINS`
+- `DATABASE_URL`
+- `TEST_DATABASE_URL`
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
+
+RAG/OpenAI:
+
+- `OPENAI_API_KEY`
+- `OPENAI_BASE_URL`
+- `CHAT_MODEL`
+- `EMBEDDING_MODEL`
+- `RAG_CHUNK_TARGET_TOKENS`, `RAG_CHUNK_OVERLAP_TOKENS`
+- `RAG_QUERY_REWRITE_HISTORY_MESSAGES`, `RAG_ANSWER_HISTORY_MESSAGES`
+- `RAG_RETRIEVAL_TOP_K`, `RAG_RETRIEVAL_MIN_SIMILARITY`
+
+Storage and ingestion:
+
+- `OBJECT_STORAGE_ENDPOINT`, `OBJECT_STORAGE_BUCKET`
+- `OBJECT_STORAGE_ACCESS_KEY`, `OBJECT_STORAGE_SECRET_KEY`
+- `OBJECT_STORAGE_REGION`, `OBJECT_STORAGE_SECURE`, `OBJECT_STORAGE_FORCE_PATH_STYLE`
+- `MAX_UPLOAD_BYTES`, `MAX_EXTRACTED_CHARS`
+- `INGESTION_WORKER_ID`, `INGESTION_MAX_ATTEMPTS`, `INGESTION_BASE_RETRY_SECONDS`

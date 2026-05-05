@@ -6,13 +6,56 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "22"
+
 jobs:
-  backend:
-    name: Backend checks and unit tests
+  backend-quality:
+    name: Backend lint and format
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install backend dependencies
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+  backend-unit:
+    name: Backend unit and API tests
+    runs-on: ubuntu-latest
+    needs: backend-quality
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_DB: rag_service
           POSTGRES_USER: rag_service
@@ -29,7 +72,7 @@ jobs:
         working-directory: backend
     env:
       DATABASE_URL: postgresql+psycopg://rag_service:rag_service@127.0.0.1:5432/rag_service
-      TEST_DATABASE_URL: postgresql+psycopg://rag_service:rag_service@127.0.0.1:5432/rag_service
+      TEST_DATABASE_URL: postgresql+psycopg://rag_service:rag_service@127.0.0.1:5432/rag_service_test
 
     steps:
       - name: Checkout
@@ -44,30 +87,111 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install backend dependencies
         run: uv sync --frozen
 
-      - name: uv run check
-        run: uv run ruff check .
-
-      - name: uv run format
-        run: uv run ruff format --check .
+      - name: Create test database
+        run: uv run python -m tests.ensure_test_database
 
       - name: Apply migrations
         run: uv run alembic upgrade head
 
-      - name: Unit tests
+      - name: Apply test database migrations
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: uv run alembic upgrade head
+
+      - name: Pytest
         run: uv run pytest
 
-  e2e:
-    name: Frontend e2e tests
+      - name: Deterministic RAG evals
+        run: uv run python -m evals.runner
+
+  frontend-quality:
+    name: Frontend type, format, unit, and build
     runs-on: ubuntu-latest
-    needs: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Prettier format check
+        working-directory: frontend
+        run: npm run format:check
+
+      - name: Type check
+        working-directory: frontend
+        run: npm run type-check
+
+      - name: Unit tests
+        working-directory: frontend
+        run: npm run test:unit
+
+      - name: Production build
+        working-directory: frontend
+        run: npm run build:only
+
+  e2e:
+    name: Deterministic frontend e2e
+    runs-on: ubuntu-latest
+    needs: frontend-quality
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Mocked document/chat e2e
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:8000
+          E2E_FRONTEND_PORT: 5174
+        run: npm run e2e -- e2e/document-pool-smoke.spec.ts e2e/chat-session-smoke.spec.ts e2e/chat-stream-smoke.spec.ts e2e/schema-files.spec.ts
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          if-no-files-found: ignore
+
+  clerk-e2e:
+    name: Real Clerk auth/schema e2e
+    runs-on: ubuntu-latest
+    needs:
+      - backend-unit
+      - frontend-quality
     services:
       postgres:
-        image: postgres:16
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_DB: rag_service
           POSTGRES_USER: rag_service
@@ -81,56 +205,79 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgresql+psycopg://rag_service:rag_service@127.0.0.1:5432/rag_service
+      CLERK_JWT_PUBLIC_KEY: ${{ secrets.CLERK_JWT_PUBLIC_KEY }}
+      VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      CLERK_TESTING_TOKEN: ${{ secrets.CLERK_TESTING_TOKEN }}
+      E2E_CLERK_USER_EMAIL: ${{ secrets.E2E_CLERK_USER_EMAIL }}
+      E2E_CLERK_USER_PASSWORD: ${{ secrets.E2E_CLERK_USER_PASSWORD }}
+      E2E_FRONTEND_PORT: "5174"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check Clerk secrets
+        id: clerk-secrets
+        run: |
+          if [ -n "$CLERK_JWT_PUBLIC_KEY" ] && [ -n "$VITE_CLERK_PUBLISHABLE_KEY" ] && [ -n "$E2E_CLERK_USER_EMAIL" ] && [ -n "$E2E_CLERK_USER_PASSWORD" ] && { [ -n "$CLERK_TESTING_TOKEN" ] || [ -n "$CLERK_SECRET_KEY" ]; }; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install uv
+        if: steps.clerk-secrets.outputs.available == 'true'
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
 
       - name: Set up Python
+        if: steps.clerk-secrets.outputs.available == 'true'
         uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install backend dependencies
+        if: steps.clerk-secrets.outputs.available == 'true'
         working-directory: backend
         run: uv sync --frozen
 
       - name: Set up Node
+        if: steps.clerk-secrets.outputs.available == 'true'
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install frontend dependencies
+        if: steps.clerk-secrets.outputs.available == 'true'
         working-directory: frontend
         run: npm ci
 
       - name: Install Playwright browser
+        if: steps.clerk-secrets.outputs.available == 'true'
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
       - name: Apply backend migrations
+        if: steps.clerk-secrets.outputs.available == 'true'
         working-directory: backend
         run: uv run alembic upgrade head
 
       - name: Start backend
+        if: steps.clerk-secrets.outputs.available == 'true'
         working-directory: backend
         env:
-          CLERK_JWT_PUBLIC_KEY: ${{ secrets.CLERK_JWT_PUBLIC_KEY }}
-          BACKEND_CORS_ORIGINS: http://127.0.0.1:5173
-          DATABASE_URL: ${{ env.DATABASE_URL }}
+          BACKEND_CORS_ORIGINS: http://127.0.0.1:${{ env.E2E_FRONTEND_PORT }}
         run: |
           uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 &
           echo $! > ../backend.pid
 
       - name: Wait for backend
+        if: steps.clerk-secrets.outputs.available == 'true'
         run: |
           for attempt in {1..30}; do
             if curl -fsS http://127.0.0.1:8000/health; then
@@ -140,30 +287,21 @@ jobs:
           done
           exit 1
 
-      - name: Frontend type check
-        working-directory: frontend
-        run: npm run type-check
-
-      - name: Frontend build
-        working-directory: frontend
-        run: npm run build
-
-      - name: E2E tests
+      - name: Clerk e2e
+        if: steps.clerk-secrets.outputs.available == 'true'
         working-directory: frontend
         env:
           VITE_API_BASE_URL: http://127.0.0.1:8000
-          DATABASE_URL: ${{ env.DATABASE_URL }}
-          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
-          CLERK_TESTING_TOKEN: ${{ secrets.CLERK_TESTING_TOKEN }}
-          E2E_CLERK_USER_EMAIL: ${{ secrets.E2E_CLERK_USER_EMAIL }}
-          E2E_CLERK_USER_PASSWORD: ${{ secrets.E2E_CLERK_USER_PASSWORD }}
         run: npm run e2e:clerk
 
-      - name: Upload Playwright report
+      - name: Clerk e2e skipped
+        if: steps.clerk-secrets.outputs.available != 'true'
+        run: echo "Skipping real Clerk e2e because required Clerk auth, backend JWT, test user, or Clerk testing-bypass secrets are not configured."
+
+      - name: Upload Clerk Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-clerk
           path: frontend/playwright-report/
           if-no-files-found: ignore

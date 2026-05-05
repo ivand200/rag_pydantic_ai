@@ -1,0 +1,81 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "created_at": {
+        "type": "string"
+      },
+      "id": {
+        "type": "string"
+      },
+      "last_message": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "model": {
+            "type": "null"
+          },
+          "retrieval_query": {
+            "type": "null"
+          },
+          "role": {
+            "type": "string"
+          },
+          "sources": {
+            "type": "array",
+            "items": {}
+          },
+          "status": {
+            "type": "string"
+          },
+          "usage": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "content",
+          "created_at",
+          "id",
+          "model",
+          "retrieval_query",
+          "role",
+          "sources",
+          "status",
+          "usage"
+        ],
+        "additionalProperties": true
+      },
+      "last_message_at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "title_status": {
+        "type": "string"
+      },
+      "updated_at": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "created_at",
+      "id",
+      "last_message",
+      "last_message_at",
+      "title",
+      "title_status",
+      "updated_at"
+    ],
+    "additionalProperties": true
+  }
+}

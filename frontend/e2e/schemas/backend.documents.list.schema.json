@@ -1,0 +1,67 @@
+{
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "byte_size": {
+        "type": "number"
+      },
+      "deleted": {
+        "type": "boolean"
+      },
+      "deleted_at": {
+        "type": ["string", "null"]
+      },
+      "failure_reason": {
+        "type": ["string", "null"]
+      },
+      "filename": {
+        "type": "string"
+      },
+      "id": {
+        "type": "string"
+      },
+      "media_type": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "uploaded_at": {
+        "type": "string"
+      },
+      "uploaded_by": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": ["string", "null"]
+          },
+          "first_name": {
+            "type": ["string", "null"]
+          },
+          "id": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["email", "first_name", "id", "last_name"],
+        "additionalProperties": true
+      }
+    },
+    "required": [
+      "byte_size",
+      "deleted",
+      "deleted_at",
+      "failure_reason",
+      "filename",
+      "id",
+      "media_type",
+      "status",
+      "uploaded_at",
+      "uploaded_by"
+    ],
+    "additionalProperties": true
+  }
+}

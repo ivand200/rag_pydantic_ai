@@ -1,36 +1,89 @@
 <script setup lang="ts">
-import {
-  SignInButton,
-  SignOutButton,
-  SignUpButton,
-  SignedIn,
-  SignedOut,
-  UserButton,
-  useAuth,
-  useUser
-} from "@clerk/vue";
-import { LogIn, LogOut, RefreshCw, ShieldCheck, UserPlus } from "lucide-vue-next";
-import { computed, ref } from "vue";
+import { useAuth } from "@clerk/vue";
+import { ref, watch } from "vue";
 
-import { type ApiStatus, fetchCurrentUser } from "./lib/api";
+import AccessGate from "./components/AccessGate.vue";
+import WorkspaceShell from "./components/WorkspaceShell.vue";
+import ChatComposer from "./components/chat/ChatComposer.vue";
+import ChatWorkspace from "./components/chat/ChatWorkspace.vue";
+import DocumentPool from "./components/documents/DocumentPool.vue";
+import { useChatSessions } from "./composables/useChatSessions";
+import { useDocuments } from "./composables/useDocuments";
+import { type ApiStatus, type ClerkTokenProvider, fetchCurrentUser } from "./lib/api";
+
+type WorkspaceSection = "chat" | "documents";
 
 const isClerkConfigured = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+const isDevelopment = import.meta.env.DEV;
+const isWorkspacePreview =
+  isDevelopment && new URLSearchParams(window.location.search).get("workspace-preview") === "1";
+const canShowWorkspace = isClerkConfigured || isWorkspacePreview;
 const auth = isClerkConfigured ? useAuth() : null;
-const clerkUser = isClerkConfigured ? useUser() : null;
+const getBackendToken: ClerkTokenProvider | null = isWorkspacePreview
+  ? async () => "workspace-preview-token"
+  : auth
+    ? () => auth.getToken.value()
+    : null;
+const activeSection = ref<WorkspaceSection>("chat");
 
 const apiStatus = ref<ApiStatus>({
   state: "idle",
   message: "Backend identity has not been checked yet."
 });
 
-const displayName = computed(() => {
-  return (
-    clerkUser?.user.value?.fullName ?? clerkUser?.user.value?.primaryEmailAddress?.emailAddress ?? "Signed-in teammate"
-  );
+const {
+  activeDocuments,
+  cancelDeleteDocument,
+  confirmDeleteDocument,
+  deletingDocumentIds,
+  documentPendingDelete,
+  documents,
+  documentsMessage,
+  documentsStatus,
+  documentSearchQuery,
+  documentTypeFilter,
+  failedDocuments,
+  filteredDocuments,
+  indexedDocuments,
+  refreshDocuments,
+  requestDeleteDocument,
+  resetDocuments,
+  sourceReadiness,
+  storageUsed,
+  queuedDocuments,
+  uploadDocumentFile,
+  uploadStatus
+} = useDocuments({
+  getBackendToken,
+  isSignedInForWorkspace
+});
+
+const {
+  activeChatSession,
+  canSendChatMessage,
+  chatMessage,
+  chatSessions,
+  chatStatus,
+  chatStreaming,
+  composerContent,
+  createNewChat,
+  creatingChatSession,
+  deleteChatSessionById,
+  deletingChatSessionIds,
+  loadChatSession,
+  loadingChatSessionId,
+  refreshChatSessions,
+  selectedChatSessionId,
+  sendChatMessage,
+  streamingAssistantMessageId
+} = useChatSessions({
+  activateChat,
+  getBackendToken,
+  isSignedInForWorkspace
 });
 
 async function checkBackendIdentity() {
-  if (!auth) {
+  if (!getBackendToken) {
     apiStatus.value = {
       state: "error",
       message: "Missing VITE_CLERK_PUBLISHABLE_KEY."
@@ -44,7 +97,7 @@ async function checkBackendIdentity() {
   };
 
   try {
-    const currentUser = await fetchCurrentUser(() => auth.getToken.value());
+    const currentUser = await fetchCurrentUser(getBackendToken);
     apiStatus.value = {
       state: "ready",
       message: "Backend synced the local app user.",
@@ -57,162 +110,111 @@ async function checkBackendIdentity() {
     };
   }
 }
+
+async function handleUploadDocument(file: File) {
+  const uploaded = await uploadDocumentFile(file);
+
+  if (uploaded) {
+    activeSection.value = "documents";
+  }
+}
+
+function activateChat() {
+  activeSection.value = "chat";
+}
+
+function isSignedInForWorkspace() {
+  return isWorkspacePreview || (auth?.isSignedIn.value ?? false);
+}
+
+watch(activeSection, (section) => {
+  if (section === "documents" && documentsStatus.value === "idle") {
+    void refreshDocuments();
+  }
+});
+
+watch(
+  () => isSignedInForWorkspace(),
+  (isSignedIn) => {
+    if (isSignedIn && documentsStatus.value === "idle") {
+      void refreshDocuments({ preserveMessage: true });
+    }
+
+    if (!isSignedIn && !isWorkspacePreview) {
+      resetDocuments();
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <template>
   <main class="min-h-screen bg-base-200 text-base-content">
-    <section v-if="!isClerkConfigured" class="flex min-h-screen items-center justify-center px-5">
-      <div class="w-full max-w-lg rounded-box border border-warning/30 bg-base-100 p-6 shadow-sm">
-        <p class="text-sm font-semibold uppercase tracking-[0.16em] text-warning">Configuration needed</p>
-        <h1 class="mt-2 text-2xl font-semibold">Missing Clerk publishable key</h1>
-        <p class="mt-3 text-sm leading-6 text-base-content/70">
-          Set VITE_CLERK_PUBLISHABLE_KEY before starting the frontend to enable sign-in, sign-up, and the protected
-          application shell.
-        </p>
-      </div>
-    </section>
+    <AccessGate :can-show-workspace="canShowWorkspace" :is-workspace-preview="isWorkspacePreview">
+      <WorkspaceShell
+        v-model:active-section="activeSection"
+        :api-status="apiStatus"
+        :chat-sessions="chatSessions"
+        :chat-status="chatStatus"
+        :creating-chat-session="creatingChatSession"
+        :deleting-chat-session-ids="deletingChatSessionIds"
+        :is-workspace-preview="isWorkspacePreview"
+        :loading-chat-session-id="loadingChatSessionId"
+        :selected-chat-session-id="selectedChatSessionId"
+        @check-backend-identity="checkBackendIdentity"
+        @delete-chat-session="deleteChatSessionById"
+        @load-chat-session="loadChatSession"
+        @new-chat="createNewChat"
+        @refresh-chat-sessions="refreshChatSessions"
+      >
+        <ChatWorkspace
+          v-if="activeSection === 'chat'"
+          :active-chat-session="activeChatSession"
+          :chat-message="chatMessage"
+          :chat-status="chatStatus"
+          :creating-chat-session="creatingChatSession"
+          :failed-documents="failedDocuments"
+          :indexed-documents="indexedDocuments"
+          :queued-documents="queuedDocuments"
+          :source-readiness="sourceReadiness"
+          :streaming-assistant-message-id="streamingAssistantMessageId"
+          @new-chat="createNewChat"
+          @resume-latest="refreshChatSessions({ resumeLatest: true })"
+        />
 
-    <template v-else>
-      <SignedOut>
-        <section class="grid min-h-screen grid-cols-1 lg:grid-cols-[1.05fr_0.95fr]">
-          <div
-            class="flex min-h-[52vh] items-center bg-neutral px-6 py-12 text-neutral-content sm:px-10 lg:min-h-screen lg:px-16"
-          >
-            <div class="max-w-2xl">
-              <p class="mb-4 text-sm font-semibold uppercase tracking-[0.18em] text-accent">Internal RAG foundation</p>
-              <h1 class="text-4xl font-semibold leading-tight sm:text-5xl">
-                Clerk-secured workspace for service teams.
-              </h1>
-              <p class="mt-5 max-w-xl text-base leading-7 text-neutral-content/75">
-                A focused authenticated entry point with a live backend identity check.
-              </p>
-            </div>
-          </div>
+        <DocumentPool
+          v-else
+          v-model:document-search-query="documentSearchQuery"
+          v-model:document-type-filter="documentTypeFilter"
+          :active-count="activeDocuments.length"
+          :deleting-document-ids="deletingDocumentIds"
+          :documents="documents"
+          :documents-message="documentsMessage"
+          :documents-status="documentsStatus"
+          :document-pending-delete="documentPendingDelete"
+          :filtered-documents="filteredDocuments"
+          :indexed-documents="indexedDocuments"
+          :queued-documents="queuedDocuments"
+          :storage-used="storageUsed"
+          :upload-status="uploadStatus"
+          @cancel-delete="cancelDeleteDocument"
+          @confirm-delete="confirmDeleteDocument"
+          @refresh="refreshDocuments"
+          @request-delete="requestDeleteDocument"
+          @upload="handleUploadDocument"
+        />
 
-          <div class="flex items-center px-6 py-10 sm:px-10 lg:px-16">
-            <div class="w-full max-w-md">
-              <div class="mb-8">
-                <p class="text-sm font-medium text-base-content/60">Access</p>
-                <h2 class="mt-2 text-3xl font-semibold">Welcome in</h2>
-              </div>
-
-              <div class="flex flex-col gap-3 sm:flex-row">
-                <SignInButton mode="modal">
-                  <button class="btn btn-primary flex-1">
-                    <LogIn :size="18" />
-                    Sign in
-                  </button>
-                </SignInButton>
-                <SignUpButton mode="modal">
-                  <button class="btn btn-outline flex-1">
-                    <UserPlus :size="18" />
-                    Create account
-                  </button>
-                </SignUpButton>
-              </div>
-
-              <div class="mt-8 flex items-center gap-3 rounded-box bg-base-200 p-4 text-sm text-base-content/70">
-                <ShieldCheck class="shrink-0 text-primary" :size="20" />
-                <span>Clerk session required</span>
-              </div>
-            </div>
-          </div>
-        </section>
-      </SignedOut>
-
-      <SignedIn>
-        <section class="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-5 py-6 sm:px-8">
-          <header class="flex flex-wrap items-center justify-between gap-4 border-b border-base-300 pb-5">
-            <div>
-              <p class="text-sm font-semibold uppercase tracking-[0.16em] text-primary">RAG service</p>
-              <h1 class="mt-1 text-2xl font-semibold sm:text-3xl">Authenticated app shell</h1>
-            </div>
-            <div class="flex items-center gap-3">
-              <UserButton after-sign-out-url="/" />
-              <SignOutButton>
-                <button class="btn btn-ghost btn-sm">
-                  <LogOut :size="16" />
-                  Sign out
-                </button>
-              </SignOutButton>
-            </div>
-          </header>
-
-          <div class="grid flex-1 gap-6 py-8 lg:grid-cols-[0.9fr_1.1fr]">
-            <aside class="rounded-box border border-base-300 bg-base-100 p-6 shadow-sm">
-              <p class="text-sm font-medium text-base-content/60">Signed in as</p>
-              <h2 class="mt-2 break-words text-2xl font-semibold">{{ displayName }}</h2>
-
-              <div class="mt-6 grid gap-3 text-sm">
-                <div class="rounded-box bg-base-200 p-4">
-                  <span class="font-medium">Frontend auth</span>
-                  <p class="mt-1 text-base-content/65">Clerk session active</p>
-                </div>
-                <div class="rounded-box bg-base-200 p-4">
-                  <span class="font-medium">Backend contract</span>
-                  <p class="mt-1 text-base-content/65">Bearer token protected</p>
-                </div>
-              </div>
-            </aside>
-
-            <section class="rounded-box border border-base-300 bg-base-100 p-6 shadow-sm">
-              <div class="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p class="text-sm font-medium text-base-content/60">Protected API</p>
-                  <h2 class="mt-2 text-2xl font-semibold">Backend identity</h2>
-                </div>
-                <button
-                  class="btn btn-primary"
-                  :class="{ 'btn-disabled': apiStatus.state === 'loading' }"
-                  :disabled="apiStatus.state === 'loading'"
-                  @click="checkBackendIdentity"
-                >
-                  <span v-if="apiStatus.state === 'loading'" class="loading loading-spinner loading-sm"></span>
-                  <RefreshCw v-else :size="18" />
-                  Check /api/me
-                </button>
-              </div>
-
-              <div
-                class="mt-6 rounded-box border p-5"
-                :class="{
-                  'border-base-300 bg-base-200': apiStatus.state === 'idle',
-                  'border-info/30 bg-info/10': apiStatus.state === 'loading',
-                  'border-success/30 bg-success/10': apiStatus.state === 'ready',
-                  'border-error/30 bg-error/10': apiStatus.state === 'error'
-                }"
-              >
-                <p class="font-medium">
-                  <span v-if="apiStatus.state === 'ready'">Connected</span>
-                  <span v-else-if="apiStatus.state === 'error'">Needs attention</span>
-                  <span v-else-if="apiStatus.state === 'loading'">Checking</span>
-                  <span v-else>Ready to check</span>
-                </p>
-                <p class="mt-2 text-sm leading-6 text-base-content/70">{{ apiStatus.message }}</p>
-
-                <dl v-if="apiStatus.user" class="mt-5 grid gap-3 text-sm sm:grid-cols-2">
-                  <div class="rounded-box bg-base-100 p-4">
-                    <dt class="font-medium text-base-content/60">App User ID</dt>
-                    <dd class="mt-1 break-all font-mono">{{ apiStatus.user.id }}</dd>
-                  </div>
-                  <div class="rounded-box bg-base-100 p-4">
-                    <dt class="font-medium text-base-content/60">First Name</dt>
-                    <dd class="mt-1 break-all font-mono">{{ apiStatus.user.first_name ?? "Not returned" }}</dd>
-                  </div>
-                  <div class="rounded-box bg-base-100 p-4">
-                    <dt class="font-medium text-base-content/60">Last Name</dt>
-                    <dd class="mt-1 break-all font-mono">{{ apiStatus.user.last_name ?? "Not returned" }}</dd>
-                  </div>
-                  <div class="rounded-box bg-base-100 p-4">
-                    <dt class="font-medium text-base-content/60">Email</dt>
-                    <dd class="mt-1 break-all font-mono">{{ apiStatus.user.email ?? "Not returned" }}</dd>
-                  </div>
-                </dl>
-              </div>
-            </section>
-          </div>
-        </section>
-      </SignedIn>
-    </template>
+        <template #composer>
+          <ChatComposer
+            v-if="activeSection === 'chat'"
+            v-model="composerContent"
+            :can-send="canSendChatMessage"
+            :has-active-session="Boolean(activeChatSession)"
+            :streaming="chatStreaming"
+            @send="sendChatMessage"
+          />
+        </template>
+      </WorkspaceShell>
+    </AccessGate>
   </main>
 </template>

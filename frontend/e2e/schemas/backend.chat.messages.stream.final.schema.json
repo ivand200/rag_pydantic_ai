@@ -1,0 +1,77 @@
+{
+  "type": "object",
+  "properties": {
+    "assistant_message_id": {
+      "type": "string"
+    },
+    "model": {
+      "type": ["string", "null"]
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "chunk_id": {
+            "type": "string"
+          },
+          "document_deleted_at": {
+            "type": "null"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "document_name": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "page_number": {
+            "type": ["number", "null"]
+          },
+          "rank": {
+            "type": "number"
+          },
+          "score": {
+            "type": "number"
+          },
+          "section_title": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": [
+          "chunk_id",
+          "document_deleted_at",
+          "document_id",
+          "document_name",
+          "excerpt",
+          "id",
+          "page_number",
+          "rank",
+          "score",
+          "section_title"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "usage": {
+      "type": ["object", "null"],
+      "properties": {
+        "requests": {
+          "type": "number"
+        }
+      },
+      "required": ["requests"],
+      "additionalProperties": true
+    }
+  },
+  "required": ["assistant_message_id", "model", "session_id", "sources", "usage"],
+  "additionalProperties": true
+}

@@ -2,32 +2,18 @@
   "type": "object",
   "properties": {
     "email": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     },
     "first_name": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     },
     "last_name": {
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": ["string", "null"]
     },
     "id": {
       "type": "string"
     }
   },
-  "required": [
-    "email",
-    "first_name",
-    "id",
-    "last_name"
-  ],
+  "required": ["email", "first_name", "id", "last_name"],
   "additionalProperties": true
 }

@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import URL, Engine, make_url
 from sqlalchemy.exc import OperationalError
 
 from alembic import command
@@ -20,7 +20,16 @@ from app.main import create_app
 
 @pytest.fixture
 def database_url(monkeypatch: pytest.MonkeyPatch) -> str:
-    url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL") or get_settings().database_url
+    get_settings.cache_clear()
+    clear_database_caches()
+    settings = get_settings()
+    url = os.getenv("TEST_DATABASE_URL") or settings.test_database_url
+    if not url:
+        pytest.fail("DB-backed tests require TEST_DATABASE_URL to point at a test database.")
+
+    app_url = os.getenv("DATABASE_URL") or settings.database_url
+    assert_test_database_url(url, app_url)
+
     monkeypatch.setenv("DATABASE_URL", url)
     get_settings.cache_clear()
     clear_database_caches()
@@ -38,13 +47,11 @@ def migrated_database(database_url: str) -> Generator[Engine]:
 
     command.upgrade(Config("alembic.ini"), "head")
 
-    with engine.begin() as connection:
-        connection.execute(text("TRUNCATE TABLE app_users"))
+    truncate_database(engine)
 
     yield engine
 
-    with engine.begin() as connection:
-        connection.execute(text("TRUNCATE TABLE app_users"))
+    truncate_database(engine)
     engine.dispose()
 
 
@@ -69,9 +76,6 @@ def test_key_pair() -> dict[str, str]:
 
 @pytest.fixture
 def client(monkeypatch: pytest.MonkeyPatch, test_key_pair: dict[str, str]) -> Generator[TestClient]:
-    if database_url := os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL"):
-        monkeypatch.setenv("DATABASE_URL", database_url)
-
     monkeypatch.setenv("CLERK_JWT_PUBLIC_KEY", test_key_pair["public"])
     monkeypatch.setenv("BACKEND_CORS_ORIGINS", "http://localhost:5173")
     get_settings.cache_clear()
@@ -100,3 +104,44 @@ def make_clerk_token(test_key_pair: dict[str, str]):
         return jwt.encode(payload, test_key_pair["private"], algorithm="RS256")
 
     return _make_clerk_token
+
+
+def assert_test_database_url(test_database_url: str, app_database_url: str) -> None:
+    test_url = make_url(test_database_url)
+    app_url = make_url(app_database_url)
+    if not _same_database(test_url, app_url):
+        return
+
+    pytest.fail(
+        "DB-backed tests are destructive and require TEST_DATABASE_URL to point at a "
+        "database separate from DATABASE_URL."
+    )
+
+
+def truncate_database(engine: Engine) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                TRUNCATE TABLE
+                    message_sources,
+                    chat_messages,
+                    chat_sessions,
+                    document_embeddings,
+                    ingestion_jobs,
+                    document_chunks,
+                    documents,
+                    app_users
+                """
+            )
+        )
+
+
+def _same_database(first: URL, second: URL) -> bool:
+    return (
+        first.drivername == second.drivername
+        and first.host == second.host
+        and first.port == second.port
+        and first.username == second.username
+        and first.database == second.database
+    )

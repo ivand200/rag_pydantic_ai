@@ -63,7 +63,10 @@ test("signs in through real Clerk UI and captures authenticated schemas", async 
     "Set VITE_CLERK_PUBLISHABLE_KEY for real Clerk e2e."
   );
   test.skip(!process.env.E2E_CLERK_USER_EMAIL, "Set E2E_CLERK_USER_EMAIL for real Clerk e2e.");
-  test.skip(!process.env.E2E_CLERK_USER_PASSWORD, "Set E2E_CLERK_USER_PASSWORD for real Clerk e2e.");
+  test.skip(
+    !process.env.E2E_CLERK_USER_PASSWORD,
+    "Set E2E_CLERK_USER_PASSWORD for real Clerk e2e."
+  );
   test.skip(
     !(await ensureClerkTestingBypass()),
     "Set CLERK_TESTING_TOKEN or CLERK_SECRET_KEY to call Clerk from a browser-origin e2e."
@@ -93,13 +96,20 @@ test("signs in through real Clerk UI and captures authenticated schemas", async 
   await page.getByRole("button", { name: "Sign in" }).click();
 
   await page.locator(".cl-signIn-root").waitFor({ state: "attached" });
-  await fillClerkSignInForm(page, process.env.E2E_CLERK_USER_EMAIL!, process.env.E2E_CLERK_USER_PASSWORD!);
+  await fillClerkSignInForm(
+    page,
+    process.env.E2E_CLERK_USER_EMAIL!,
+    process.env.E2E_CLERK_USER_PASSWORD!
+  );
 
-  await expect(page.getByRole("heading", { name: "Authenticated app shell" })).toBeVisible({
+  await expect(page.getByRole("heading", { name: "RAG Architect" })).toBeVisible({
     timeout: 45_000
   });
+  await expect(page.getByRole("button", { name: "Check /api/me" })).toBeVisible();
 
-  const meResponsePromise = page.waitForResponse((response) => response.url().includes("/api/me") && response.ok());
+  const meResponsePromise = page.waitForResponse(
+    (response) => response.url().includes("/api/me") && response.ok()
+  );
 
   await page.getByRole("button", { name: "Check /api/me" }).click();
   await expect(page.getByText("Backend synced the local app user.")).toBeVisible({
@@ -118,7 +128,9 @@ test("signs in through real Clerk UI and captures authenticated schemas", async 
 });
 
 async function fillClerkSignInForm(page: Page, email: string, password: string) {
-  const identifierInput = page.locator('input[name="identifier"], input[name="emailAddress"]').first();
+  const identifierInput = page
+    .locator('input[name="identifier"], input[name="emailAddress"]')
+    .first();
   await identifierInput.waitFor({ state: "visible" });
   await identifierInput.fill(email);
 
@@ -127,12 +139,18 @@ async function fillClerkSignInForm(page: Page, email: string, password: string) 
     await passwordInput.fill(password);
   }
 
-  await page.getByRole("button", { name: /continue|sign in/i }).first().click();
+  await page
+    .getByRole("button", { name: /continue|sign in/i })
+    .first()
+    .click();
 
   if (!(await passwordInput.isVisible())) {
     await passwordInput.waitFor({ state: "visible", timeout: 15_000 });
     await passwordInput.fill(password);
-    await page.getByRole("button", { name: /continue|sign in/i }).first().click();
+    await page
+      .getByRole("button", { name: /continue|sign in/i })
+      .first()
+      .click();
   }
 }
 
@@ -185,10 +203,9 @@ function apiBaseUrl() {
 }
 
 function testBaseUrl() {
-  return (process.env.E2E_BASE_URL ?? `http://127.0.0.1:${process.env.E2E_FRONTEND_PORT ?? "5173"}`).replace(
-    /\/$/,
-    ""
-  );
+  return (
+    process.env.E2E_BASE_URL ?? `http://127.0.0.1:${process.env.E2E_FRONTEND_PORT ?? "5173"}`
+  ).replace(/\/$/, "");
 }
 
 function shouldWriteSchemas() {
@@ -205,5 +222,7 @@ async function expectJsonOk(response: APIResponse | Response, label: string) {
     return;
   }
 
-  throw new Error(`${label} failed with ${response.status()}: ${(await response.text()).slice(0, 500)}`);
+  throw new Error(
+    `${label} failed with ${response.status()}: ${(await response.text()).slice(0, 500)}`
+  );
 }

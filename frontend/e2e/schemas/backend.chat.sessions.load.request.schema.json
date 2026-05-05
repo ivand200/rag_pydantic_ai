@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "properties": {
+    "method": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    },
+    "session_id": {
+      "type": "string"
+    }
+  },
+  "required": ["method", "path", "session_id"],
+  "additionalProperties": true
+}

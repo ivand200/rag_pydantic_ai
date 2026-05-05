@@ -1,11 +1,28 @@
+# Local environment and secrets
 .env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
 
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.pyre/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
 .venv/
+venv/
+env/
+*.egg-info/
+.python-version
 
 # Frontend
 frontend/node_modules/
@@ -13,6 +30,35 @@ frontend/dist/
 frontend/.vite/
 frontend/playwright-report/
 frontend/test-results/
+frontend/coverage/
+frontend/.nyc_output/
+frontend/*.tsbuildinfo
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Local tooling
+# Runtime data and local infrastructure
+*.db
+*.sqlite
+*.sqlite3
+postgres_data/
+minio_data/
+.docker-data/
+
+# Generated reports and temporary files
+*.log
+tmp/
+temp/
+
+# Local tooling / OS
 .DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# tasks/
