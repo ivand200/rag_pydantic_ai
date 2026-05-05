@@ -1,4 +1,5 @@
 import json
+import logging
 from collections.abc import AsyncIterator
 from typing import Annotated
 from uuid import UUID
@@ -37,6 +38,7 @@ from app.models.app_user import AppUser
 from app.retrieval.embeddings import OpenAIEmbeddingProvider
 
 router = APIRouter(prefix="/api/chat/sessions", tags=["chat"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=list[ChatSessionSummary])
@@ -186,6 +188,7 @@ async def _stream_chat_events(
         )
         yield _sse_event("final", final.model_dump(mode="json"))
     except Exception:
+        logger.exception("Chat stream generation failed for session %s", session_id)
         db.rollback()
         error = ChatStreamErrorEvent(message="Chat generation failed.", retryable=True)
         yield _sse_event("error", error.model_dump(mode="json"))

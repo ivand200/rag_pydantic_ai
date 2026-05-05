@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+import asyncio
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
@@ -14,8 +15,13 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
 from app.chat.rag_orchestration import (
+    AnswerStreamDelta,
+    AnswerStreamFinal,
     ChatHistoryMessage,
+    RAGOrchestrationResult,
     RAGOrchestrationService,
+    RAGOrchestrationStreamDelta,
+    RAGOrchestrationStreamFinal,
     generate_no_source_answer,
 )
 from app.chat.source_enrichment import (
@@ -84,7 +90,7 @@ class ScriptedQueryRewriter:
         self.seen_current_message: str | None = None
         self.seen_history: list[ChatHistoryMessage] = []
 
-    def rewrite(
+    async def rewrite(
         self,
         *,
         current_message: str,
@@ -101,18 +107,21 @@ class SourceGroundedAnswerGenerator:
         self.seen_sources: list[RetrievalResult] = []
         self.call_count = 0
 
-    def answer(
+    async def stream_answer(
         self,
         *,
         current_message: str,
         history: Sequence[ChatHistoryMessage],
         sources: Sequence[RetrievalResult],
-    ) -> tuple[str, dict[str, object] | None]:
+    ) -> AsyncIterator[AnswerStreamDelta | AnswerStreamFinal]:
+        assert current_message
+        assert history is not None
         self.call_count += 1
         self.seen_sources = list(sources)
         if not sources:
             raise AssertionError("Answer generation should not run without retrieved sources.")
-        return self.answer_text, {"requests": 1, "eval": True}
+        yield AnswerStreamDelta(self.answer_text)
+        yield AnswerStreamFinal(usage={"requests": 1, "eval": True})
 
 
 def main() -> int:
@@ -189,7 +198,8 @@ def eval_retrieval_hit(db: Session, fixture: SeededFixture) -> EvalResult:
         answer="Escalation deadline is two business days.",
     )
 
-    result = service.generate(
+    result = generate_eval_result(
+        service=service,
         db=db,
         session_id=fixture.session.id,
         current_message="What is the escalation deadline?",
@@ -210,7 +220,8 @@ def eval_citation_correctness(db: Session, fixture: SeededFixture) -> EvalResult
         answer="Escalation deadline is two business days.",
     )
 
-    result = service.generate(
+    result = generate_eval_result(
+        service=service,
         db=db,
         session_id=fixture.session.id,
         current_message="Cite the escalation deadline.",
@@ -242,7 +253,8 @@ def eval_no_source(db: Session, fixture: SeededFixture) -> EvalResult:
         answer_generator=answer_generator,
     )
 
-    result = service.generate(
+    result = generate_eval_result(
+        service=service,
         db=db,
         session_id=fixture.session.id,
         current_message="What is the vacation rollover policy?",
@@ -271,7 +283,8 @@ def eval_deleted_document_exclusion(db: Session, fixture: SeededFixture) -> Eval
         answer="Only the active source may be cited.",
     )
 
-    result = service.generate(
+    result = generate_eval_result(
+        service=service,
         db=db,
         session_id=fixture.session.id,
         current_message="Use the deleted escalation runbook.",
@@ -310,7 +323,8 @@ def eval_query_rewrite(db: Session, fixture: SeededFixture) -> EvalResult:
     db.add(current)
     db.commit()
 
-    result = service.generate(
+    result = generate_eval_result(
+        service=service,
         db=db,
         session_id=fixture.session.id,
         current_message=current.content,
@@ -349,7 +363,8 @@ def eval_aggregate_outline_count(db: Session, fixture: SeededFixture) -> EvalRes
         source_enricher=MarkdownSectionOutlineEnricher(),
     )
 
-    result = service.generate(
+    result = generate_eval_result(
+        service=service,
         db=db,
         session_id=fixture.session.id,
         current_message="How much components in DaisyUI?",
@@ -400,6 +415,38 @@ def build_eval_service(
         min_similarity=0.7,
         source_enricher=source_enricher or NoOpSourceEnricher(),
     )
+
+
+def generate_eval_result(
+    *,
+    service: RAGOrchestrationService,
+    db: Session,
+    session_id: UUID,
+    current_message: str,
+    current_message_id: UUID | None = None,
+) -> RAGOrchestrationResult:
+    return asyncio.run(
+        collect_final_result(
+            service.generate_stream(
+                db=db,
+                session_id=session_id,
+                current_message=current_message,
+                current_message_id=current_message_id,
+            )
+        )
+    )
+
+
+async def collect_final_result(
+    events: AsyncIterator[RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal],
+) -> RAGOrchestrationResult:
+    final: RAGOrchestrationStreamFinal | None = None
+    async for event in events:
+        if isinstance(event, RAGOrchestrationStreamFinal):
+            final = event
+    if final is None:
+        raise AssertionError("stream completed without a final event")
+    return final.result
 
 
 def seed_eval_fixture(db: Session) -> SeededFixture:

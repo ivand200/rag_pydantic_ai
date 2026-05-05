@@ -55,10 +55,6 @@ class QueryRewriteOutput(BaseModel):
     query: str = Field(min_length=1)
 
 
-class AnswerGenerationOutput(BaseModel):
-    answer: str = Field(min_length=1)
-
-
 class SourceCitationPayload(BaseModel):
     document_id: UUID
     document_name: str
@@ -107,7 +103,7 @@ RAGOrchestrationStreamEvent = RAGOrchestrationStreamDelta | RAGOrchestrationStre
 
 
 class QueryRewriteService(Protocol):
-    def rewrite(
+    async def rewrite(
         self,
         *,
         current_message: str,
@@ -116,14 +112,6 @@ class QueryRewriteService(Protocol):
 
 
 class AnswerGenerationService(Protocol):
-    def answer(
-        self,
-        *,
-        current_message: str,
-        history: Sequence[ChatHistoryMessage],
-        sources: Sequence[RetrievalResult],
-    ) -> tuple[str, dict[str, object] | None]: ...
-
     def stream_answer(
         self,
         *,
@@ -142,7 +130,7 @@ class PydanticAIQueryRewriteService:
             instructions=_query_rewrite_instructions,
         )
 
-    def rewrite(
+    async def rewrite(
         self,
         *,
         current_message: str,
@@ -152,7 +140,7 @@ class PydanticAIQueryRewriteService:
             current_message=current_message,
             history=tuple(history),
         )
-        result = self._agent.run_sync(
+        result = await self._agent.run(
             "Create one retrieval query for the current user message.",
             deps=deps,
         )
@@ -161,38 +149,11 @@ class PydanticAIQueryRewriteService:
 
 class PydanticAIAnswerService:
     def __init__(self, *, model: Model | str) -> None:
-        self._agent = Agent(
-            model,
-            output_type=AnswerGenerationOutput,
-            deps_type=AnswerDependencies,
-            instructions=_answer_generation_instructions,
-        )
         self._streaming_agent = Agent(
             model,
             deps_type=AnswerDependencies,
             instructions=_answer_generation_instructions,
         )
-
-    def answer(
-        self,
-        *,
-        current_message: str,
-        history: Sequence[ChatHistoryMessage],
-        sources: Sequence[RetrievalResult],
-    ) -> tuple[str, dict[str, object] | None]:
-        if not sources:
-            return generate_no_source_answer(), None
-
-        deps = AnswerDependencies(
-            current_message=current_message,
-            history=tuple(history),
-            sources=tuple(sources),
-        )
-        result = self._agent.run_sync(
-            "Answer the current user message using only the retrieved sources.",
-            deps=deps,
-        )
-        return result.output.answer.strip(), _usage_dict(result.usage())
 
     async def stream_answer(
         self,
@@ -233,66 +194,6 @@ class RAGOrchestrationService:
     rewrite_history_messages: int = DEFAULT_HISTORY_MESSAGES
     answer_history_messages: int = DEFAULT_HISTORY_MESSAGES
 
-    def generate(
-        self,
-        *,
-        db: Session,
-        session_id: UUID,
-        current_message: str,
-        current_message_id: UUID | None = None,
-    ) -> RAGOrchestrationResult:
-        rewrite_history = load_recent_chat_history(
-            db=db,
-            session_id=session_id,
-            limit=self.rewrite_history_messages,
-            exclude_message_id=current_message_id,
-        )
-        retrieval_query = self.query_rewriter.rewrite(
-            current_message=current_message,
-            history=rewrite_history,
-        )
-        sources = retrieve_relevant_chunks(
-            db=db,
-            embedding_provider=self.embedding_provider,
-            query=retrieval_query,
-            top_k=self.top_k,
-            min_similarity=self.min_similarity,
-        )
-        if not sources:
-            return RAGOrchestrationResult(
-                answer=generate_no_source_answer(),
-                retrieval_query=retrieval_query,
-                sources=[],
-                model=self.chat_model,
-                usage=None,
-            )
-
-        answer_sources = self.source_enricher.enrich(
-            db=db,
-            current_message=current_message,
-            retrieval_query=retrieval_query,
-            sources=sources,
-        )
-        citations = build_source_citation_payloads(answer_sources)
-        answer_history = load_recent_chat_history(
-            db=db,
-            session_id=session_id,
-            limit=self.answer_history_messages,
-            exclude_message_id=current_message_id,
-        )
-        answer, usage = self.answer_generator.answer(
-            current_message=current_message,
-            history=answer_history,
-            sources=answer_sources,
-        )
-        return RAGOrchestrationResult(
-            answer=answer,
-            retrieval_query=retrieval_query,
-            sources=citations,
-            model=self.chat_model,
-            usage=usage,
-        )
-
     async def generate_stream(
         self,
         *,
@@ -307,7 +208,7 @@ class RAGOrchestrationService:
             limit=self.rewrite_history_messages,
             exclude_message_id=current_message_id,
         )
-        retrieval_query = self.query_rewriter.rewrite(
+        retrieval_query = await self.query_rewriter.rewrite(
             current_message=current_message,
             history=rewrite_history,
         )

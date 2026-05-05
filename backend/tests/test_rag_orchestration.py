@@ -19,6 +19,7 @@ from app.chat.rag_orchestration import (
     ChatModelConfigurationError,
     PydanticAIAnswerService,
     PydanticAIQueryRewriteService,
+    RAGOrchestrationResult,
     RAGOrchestrationService,
     RAGOrchestrationStreamDelta,
     RAGOrchestrationStreamFinal,
@@ -46,27 +47,14 @@ def test_query_rewrite_uses_pydantic_ai_model_double() -> None:
         model=TestModel(custom_output_args={"query": "quarterly risk escalation policy"})
     )
 
-    query = service.rewrite(
-        current_message="What changed there?",
-        history=[ChatHistoryMessage(role="user", content="Open the quarterly risk notes.")],
+    query = asyncio.run(
+        service.rewrite(
+            current_message="What changed there?",
+            history=[ChatHistoryMessage(role="user", content="Open the quarterly risk notes.")],
+        )
     )
 
     assert query == "quarterly risk escalation policy"
-
-
-def test_answer_generation_uses_pydantic_ai_model_double() -> None:
-    service = PydanticAIAnswerService(
-        model=TestModel(custom_output_args={"answer": "Escalation must happen within two days."})
-    )
-
-    answer, usage = service.answer(
-        current_message="When does escalation happen?",
-        history=[],
-        sources=[make_retrieval_result(text="Escalation must happen within two days.")],
-    )
-
-    assert answer == "Escalation must happen within two days."
-    assert usage is not None and usage["requests"] == 1
 
 
 def test_answer_generation_streams_text_deltas_with_pydantic_ai_model_double() -> None:
@@ -136,11 +124,15 @@ def test_orchestration_uses_current_message_plus_last_six_same_session_messages(
         min_similarity=0.7,
     )
 
-    result = service.generate(
-        db=db_session,
-        session_id=session.id,
-        current_message=current_message.content,
-        current_message_id=current_message.id,
+    result = asyncio.run(
+        collect_final_result(
+            service.generate_stream(
+                db=db_session,
+                session_id=session.id,
+                current_message=current_message.content,
+                current_message_id=current_message.id,
+            )
+        )
     )
 
     assert result.answer == "Escalation deadline is two days."
@@ -169,10 +161,14 @@ def test_orchestration_generates_no_source_response_without_answer_model(
         min_similarity=0.7,
     )
 
-    result = service.generate(
-        db=db_session,
-        session_id=session.id,
-        current_message="Can uploaded docs answer this?",
+    result = asyncio.run(
+        collect_final_result(
+            service.generate_stream(
+                db=db_session,
+                session_id=session.id,
+                current_message="Can uploaded docs answer this?",
+            )
+        )
     )
 
     assert result.answer == generate_no_source_answer()
@@ -203,10 +199,14 @@ def test_orchestration_enriches_sources_before_answer_and_citation_payloads(
         source_enricher=enricher,
     )
 
-    result = service.generate(
-        db=db_session,
-        session_id=session.id,
-        current_message="How many components does DaisyUI have?",
+    result = asyncio.run(
+        collect_final_result(
+            service.generate_stream(
+                db=db_session,
+                session_id=session.id,
+                current_message="How many components does DaisyUI have?",
+            )
+        )
     )
 
     assert enricher.seen_retrieval_query == "DaisyUI components"
@@ -345,7 +345,7 @@ class RecordingQueryRewriter:
         self.seen_current_message: str | None = None
         self.seen_history: list[ChatHistoryMessage] = []
 
-    def rewrite(
+    async def rewrite(
         self,
         *,
         current_message: str,
@@ -362,17 +362,6 @@ class RecordingAnswerGenerator:
         self.stream_deltas = stream_deltas
         self.seen_current_message: str | None = None
         self.seen_sources: list[RetrievalResult] = []
-
-    def answer(
-        self,
-        *,
-        current_message: str,
-        history: Sequence[ChatHistoryMessage],
-        sources: Sequence[RetrievalResult],
-    ) -> tuple[str, dict[str, object] | None]:
-        self.seen_current_message = current_message
-        self.seen_sources = list(sources)
-        return self.answer_text, {"requests": 1}
 
     async def stream_answer(
         self,
@@ -418,15 +407,6 @@ class RecordingSourceEnricher:
 
 
 class FailingAnswerGenerator:
-    def answer(
-        self,
-        *,
-        current_message: str,
-        history: Sequence[ChatHistoryMessage],
-        sources: Sequence[RetrievalResult],
-    ) -> tuple[str, dict[str, object] | None]:
-        raise AssertionError("answer model should not run when no sources are retrieved")
-
     async def stream_answer(
         self,
         *,
@@ -447,6 +427,18 @@ async def collect_answer_events(
     events: AsyncIterator[AnswerStreamDelta | AnswerStreamFinal],
 ) -> list[AnswerStreamDelta | AnswerStreamFinal]:
     return [event async for event in events]
+
+
+async def collect_final_result(
+    events: AsyncIterator[RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal],
+) -> RAGOrchestrationResult:
+    final: RAGOrchestrationStreamFinal | None = None
+    async for event in events:
+        if isinstance(event, RAGOrchestrationStreamFinal):
+            final = event
+    if final is None:
+        raise AssertionError("stream completed without a final event")
+    return final.result
 
 
 def create_session_with_messages(db: Session, *, prior_message_count: int) -> ChatSession:

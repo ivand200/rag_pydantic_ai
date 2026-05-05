@@ -7,19 +7,23 @@ from hashlib import sha256
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
+from pydantic_ai.models.test import TestModel
 from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.api.chat import get_chat_title_generator, get_rag_orchestration_service
 from app.chat.rag_orchestration import (
+    PydanticAIAnswerService,
+    PydanticAIQueryRewriteService,
     RAGOrchestrationResult,
+    RAGOrchestrationService,
     RAGOrchestrationStreamDelta,
     RAGOrchestrationStreamFinal,
     SourceCitationPayload,
 )
 from app.models.app_user import AppUser
-from app.models.rag import ChatMessage, Document, DocumentChunk, MessageSource
+from app.models.rag import ChatMessage, Document, DocumentChunk, DocumentEmbedding, MessageSource
 
 
 def test_stream_success_emits_final_metadata_and_persists_assistant_sources(
@@ -109,6 +113,64 @@ def test_stream_success_emits_final_metadata_and_persists_assistant_sources(
         assert sorted(message.role for message in messages) == ["assistant", "user"]
         source = db.execute(select(MessageSource)).scalar_one()
         assert source.document_name == document_name
+
+
+def test_stream_real_orchestration_model_double_answers_through_api(
+    client: TestClient,
+    make_clerk_token: Callable[..., str],
+    migrated_database: Engine,
+) -> None:
+    headers = {"Authorization": f"Bearer {make_clerk_token()}"}
+    session_id = UUID(client.post("/api/chat/sessions", headers=headers).json()["id"])
+    embedding_provider = StaticEmbeddingProvider()
+    with Session(migrated_database) as db:
+        app_user = app_user_by_clerk_id(db, "user_2abc123")
+        document, chunk = create_completed_document_chunk(
+            db,
+            app_user=app_user,
+            text="April invoice number is INV-98210dmyy-2026-8.",
+        )
+        db.add(
+            DocumentEmbedding(
+                id=uuid4(),
+                chunk_id=chunk.id,
+                embedding_model=embedding_provider.model,
+                embedding=embedding_provider.embed_query("April invoice number"),
+                created_at=datetime.now(UTC),
+            )
+        )
+        db.commit()
+        document_id = document.id
+    client.app.dependency_overrides[get_rag_orchestration_service] = lambda: (
+        RAGOrchestrationService(
+            embedding_provider=embedding_provider,
+            query_rewriter=PydanticAIQueryRewriteService(
+                model=TestModel(custom_output_args={"query": "April invoice number"})
+            ),
+            answer_generator=PydanticAIAnswerService(
+                model=TestModel(
+                    custom_output_text="The April invoice number is INV-98210dmyy-2026-8."
+                )
+            ),
+            chat_model="test-chat-model",
+            top_k=1,
+            min_similarity=0.7,
+        )
+    )
+    client.app.dependency_overrides[get_chat_title_generator] = lambda: StaticTitleGenerator(
+        "April invoice"
+    )
+
+    response = client.post(
+        f"/api/chat/sessions/{session_id}/messages/stream",
+        headers=headers,
+        json={"content": "What is April invoice number?"},
+    )
+
+    client.app.dependency_overrides.clear()
+    events = parse_sse_events(response.text)
+    assert "error" not in [event["event"] for event in events]
+    assert events[-1]["data"]["sources"][0]["document_id"] == str(document_id)
 
 
 def test_stream_no_source_persists_completed_assistant_without_citations(
@@ -361,20 +423,6 @@ class StaticRAGService:
         self.result = result
         self.deltas = deltas
 
-    def generate(
-        self,
-        *,
-        db: Session,
-        session_id: UUID,
-        current_message: str,
-        current_message_id: UUID | None = None,
-    ) -> RAGOrchestrationResult:
-        assert db
-        assert session_id
-        assert current_message
-        assert current_message_id
-        return self.result
-
     async def generate_stream(
         self,
         *,
@@ -393,16 +441,6 @@ class StaticRAGService:
 
 
 class FailingRAGService:
-    def generate(
-        self,
-        *,
-        db: Session,
-        session_id: UUID,
-        current_message: str,
-        current_message_id: UUID | None = None,
-    ) -> RAGOrchestrationResult:
-        raise RuntimeError("model unavailable")
-
     async def generate_stream(
         self,
         *,
@@ -417,6 +455,19 @@ class FailingRAGService:
         assert current_message_id
         raise RuntimeError("model unavailable")
         yield RAGOrchestrationStreamDelta("")  # pragma: no cover
+
+
+class StaticEmbeddingProvider:
+    model = "test-embedding"
+
+    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        return [self.embed_query(text) for text in texts]
+
+    def embed_query(self, text: str) -> list[float]:
+        assert text
+        embedding = [0.0] * 1536
+        embedding[0] = 1.0
+        return embedding
 
 
 class StaticTitleGenerator:
