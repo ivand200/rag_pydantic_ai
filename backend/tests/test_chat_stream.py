@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
 from hashlib import sha256
 from uuid import UUID, uuid4
@@ -12,7 +12,12 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.api.chat import get_chat_title_generator, get_rag_orchestration_service
-from app.chat.rag_orchestration import RAGOrchestrationResult, SourceCitationPayload
+from app.chat.rag_orchestration import (
+    RAGOrchestrationResult,
+    RAGOrchestrationStreamDelta,
+    RAGOrchestrationStreamFinal,
+    SourceCitationPayload,
+)
 from app.models.app_user import AppUser
 from app.models.rag import ChatMessage, Document, DocumentChunk, MessageSource
 
@@ -53,7 +58,8 @@ def test_stream_success_emits_final_metadata_and_persists_assistant_sources(
             ],
             model="test-chat-model",
             usage={"requests": 1},
-        )
+        ),
+        deltas=["Escalation must happen ", "within two days."],
     )
     client.app.dependency_overrides[get_chat_title_generator] = lambda: StaticTitleGenerator(
         "Escalation deadline"
@@ -69,9 +75,10 @@ def test_stream_success_emits_final_metadata_and_persists_assistant_sources(
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
     events = parse_sse_events(response.text)
-    assert [event["event"] for event in events] == ["delta", "final"]
-    assert events[0]["data"] == {"text": "Escalation must happen within two days."}
-    final = events[1]["data"]
+    assert [event["event"] for event in events] == ["delta", "delta", "final"]
+    assert events[0]["data"] == {"text": "Escalation must happen "}
+    assert events[1]["data"] == {"text": "within two days."}
+    final = events[2]["data"]
     assert final | {"assistant_message_id": final["assistant_message_id"]} == {
         "assistant_message_id": final["assistant_message_id"],
         "session_id": str(session_id),
@@ -350,8 +357,9 @@ def create_completed_document_chunk(
 
 
 class StaticRAGService:
-    def __init__(self, result: RAGOrchestrationResult) -> None:
+    def __init__(self, result: RAGOrchestrationResult, deltas: list[str] | None = None) -> None:
         self.result = result
+        self.deltas = deltas
 
     def generate(
         self,
@@ -367,6 +375,22 @@ class StaticRAGService:
         assert current_message_id
         return self.result
 
+    async def generate_stream(
+        self,
+        *,
+        db: Session,
+        session_id: UUID,
+        current_message: str,
+        current_message_id: UUID | None = None,
+    ) -> AsyncIterator[RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal]:
+        assert db
+        assert session_id
+        assert current_message
+        assert current_message_id
+        for delta in self.deltas or [self.result.answer]:
+            yield RAGOrchestrationStreamDelta(delta)
+        yield RAGOrchestrationStreamFinal(self.result)
+
 
 class FailingRAGService:
     def generate(
@@ -378,6 +402,21 @@ class FailingRAGService:
         current_message_id: UUID | None = None,
     ) -> RAGOrchestrationResult:
         raise RuntimeError("model unavailable")
+
+    async def generate_stream(
+        self,
+        *,
+        db: Session,
+        session_id: UUID,
+        current_message: str,
+        current_message_id: UUID | None = None,
+    ) -> AsyncIterator[RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal]:
+        assert db
+        assert session_id
+        assert current_message
+        assert current_message_id
+        raise RuntimeError("model unavailable")
+        yield RAGOrchestrationStreamDelta("")  # pragma: no cover
 
 
 class StaticTitleGenerator:

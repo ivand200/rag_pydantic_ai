@@ -1,5 +1,5 @@
 import json
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 from typing import Annotated
 from uuid import UUID
 
@@ -9,6 +9,8 @@ from starlette.responses import StreamingResponse
 
 from app.chat.rag_orchestration import (
     RAGOrchestrationService,
+    RAGOrchestrationStreamDelta,
+    RAGOrchestrationStreamFinal,
     build_openai_chat_model,
     build_rag_orchestration_service,
 )
@@ -136,7 +138,7 @@ def stream_message(
     )
 
 
-def _stream_chat_events(
+async def _stream_chat_events(
     *,
     db: Session,
     app_user: AppUser,
@@ -144,15 +146,22 @@ def _stream_chat_events(
     user_message_id: UUID,
     current_message: str,
     rag_service: RAGOrchestrationService,
-) -> Iterator[str]:
+) -> AsyncIterator[str]:
     try:
-        result = rag_service.generate(
+        result = None
+        async for event in rag_service.generate_stream(
             db=db,
             session_id=session_id,
             current_message=current_message,
             current_message_id=user_message_id,
-        )
-        yield _sse_event("delta", {"text": result.answer})
+        ):
+            if isinstance(event, RAGOrchestrationStreamDelta):
+                yield _sse_event("delta", {"text": event.text})
+            elif isinstance(event, RAGOrchestrationStreamFinal):
+                result = event.result
+
+        if result is None:
+            raise RuntimeError("Chat generation completed without a final event.")
 
         assistant_message = append_assistant_message_with_sources(
             db=db,

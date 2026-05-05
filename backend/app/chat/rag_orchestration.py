@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from typing import Literal, Protocol
 from uuid import UUID
@@ -80,6 +80,32 @@ class RAGOrchestrationResult(BaseModel):
     usage: dict[str, object] | None = None
 
 
+@dataclass(frozen=True)
+class AnswerStreamDelta:
+    text: str
+
+
+@dataclass(frozen=True)
+class AnswerStreamFinal:
+    usage: dict[str, object] | None
+
+
+AnswerStreamEvent = AnswerStreamDelta | AnswerStreamFinal
+
+
+@dataclass(frozen=True)
+class RAGOrchestrationStreamDelta:
+    text: str
+
+
+@dataclass(frozen=True)
+class RAGOrchestrationStreamFinal:
+    result: RAGOrchestrationResult
+
+
+RAGOrchestrationStreamEvent = RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal
+
+
 class QueryRewriteService(Protocol):
     def rewrite(
         self,
@@ -97,6 +123,14 @@ class AnswerGenerationService(Protocol):
         history: Sequence[ChatHistoryMessage],
         sources: Sequence[RetrievalResult],
     ) -> tuple[str, dict[str, object] | None]: ...
+
+    def stream_answer(
+        self,
+        *,
+        current_message: str,
+        history: Sequence[ChatHistoryMessage],
+        sources: Sequence[RetrievalResult],
+    ) -> AsyncIterator[AnswerStreamEvent]: ...
 
 
 class PydanticAIQueryRewriteService:
@@ -133,6 +167,11 @@ class PydanticAIAnswerService:
             deps_type=AnswerDependencies,
             instructions=_answer_generation_instructions,
         )
+        self._streaming_agent = Agent(
+            model,
+            deps_type=AnswerDependencies,
+            instructions=_answer_generation_instructions,
+        )
 
     def answer(
         self,
@@ -154,6 +193,32 @@ class PydanticAIAnswerService:
             deps=deps,
         )
         return result.output.answer.strip(), _usage_dict(result.usage())
+
+    async def stream_answer(
+        self,
+        *,
+        current_message: str,
+        history: Sequence[ChatHistoryMessage],
+        sources: Sequence[RetrievalResult],
+    ) -> AsyncIterator[AnswerStreamEvent]:
+        if not sources:
+            yield AnswerStreamDelta(generate_no_source_answer())
+            yield AnswerStreamFinal(usage=None)
+            return
+
+        deps = AnswerDependencies(
+            current_message=current_message,
+            history=tuple(history),
+            sources=tuple(sources),
+        )
+        async with self._streaming_agent.run_stream(
+            "Answer the current user message using only the retrieved sources.",
+            deps=deps,
+        ) as result:
+            async for delta in result.stream_text(delta=True, debounce_by=None):
+                yield AnswerStreamDelta(delta)
+
+            yield AnswerStreamFinal(usage=_usage_dict(result.usage()))
 
 
 @dataclass(frozen=True)
@@ -226,6 +291,86 @@ class RAGOrchestrationService:
             sources=citations,
             model=self.chat_model,
             usage=usage,
+        )
+
+    async def generate_stream(
+        self,
+        *,
+        db: Session,
+        session_id: UUID,
+        current_message: str,
+        current_message_id: UUID | None = None,
+    ) -> AsyncIterator[RAGOrchestrationStreamEvent]:
+        rewrite_history = load_recent_chat_history(
+            db=db,
+            session_id=session_id,
+            limit=self.rewrite_history_messages,
+            exclude_message_id=current_message_id,
+        )
+        retrieval_query = self.query_rewriter.rewrite(
+            current_message=current_message,
+            history=rewrite_history,
+        )
+        sources = retrieve_relevant_chunks(
+            db=db,
+            embedding_provider=self.embedding_provider,
+            query=retrieval_query,
+            top_k=self.top_k,
+            min_similarity=self.min_similarity,
+        )
+        if not sources:
+            answer = generate_no_source_answer()
+            yield RAGOrchestrationStreamDelta(answer)
+            yield RAGOrchestrationStreamFinal(
+                RAGOrchestrationResult(
+                    answer=answer,
+                    retrieval_query=retrieval_query,
+                    sources=[],
+                    model=self.chat_model,
+                    usage=None,
+                )
+            )
+            return
+
+        answer_sources = self.source_enricher.enrich(
+            db=db,
+            current_message=current_message,
+            retrieval_query=retrieval_query,
+            sources=sources,
+        )
+        citations = build_source_citation_payloads(answer_sources)
+        answer_history = load_recent_chat_history(
+            db=db,
+            session_id=session_id,
+            limit=self.answer_history_messages,
+            exclude_message_id=current_message_id,
+        )
+
+        answer_parts: list[str] = []
+        usage: dict[str, object] | None = None
+        async for event in self.answer_generator.stream_answer(
+            current_message=current_message,
+            history=answer_history,
+            sources=answer_sources,
+        ):
+            if isinstance(event, AnswerStreamDelta):
+                answer_parts.append(event.text)
+                yield RAGOrchestrationStreamDelta(event.text)
+            else:
+                usage = event.usage
+
+        answer = "".join(answer_parts).strip()
+        if not answer:
+            raise RuntimeError("Answer generation returned no text.")
+
+        yield RAGOrchestrationStreamFinal(
+            RAGOrchestrationResult(
+                answer=answer,
+                retrieval_query=retrieval_query,
+                sources=citations,
+                model=self.chat_model,
+                usage=usage,
+            )
         )
 
 

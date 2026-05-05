@@ -106,7 +106,7 @@ function handleFileSelected(event: Event) {
         <div class="stat">
           <div class="stat-title uppercase tracking-wider text-[#404751]">Processing Queue</div>
           <div class="stat-value text-[#181a2a]">{{ queuedDocuments }}</div>
-          <div class="stat-desc text-[#b15f00]">Worker behavior is outside this task</div>
+          <div class="stat-desc text-[#b15f00]">Queued or processing files</div>
         </div>
       </div>
     </div>

@@ -62,7 +62,8 @@
 
 ## Feature Availability States
 
-- Implemented frontend fetches include `/api/me`, shared document upload/list/delete, saved chat sessions, chat history loading, and streaming chat messages.
+- Implemented frontend fetches include `/api/me`, shared document upload/list/delete, saved chat session list/create/load/delete, chat history loading, and streaming chat messages.
+- Implemented document controls include manual refresh, visible-metadata search, type filtering, ingestion-status polling while documents are queued or processing, source-readiness states, and shared-delete confirmation.
 - Future controls such as source filtering, model management, export, deploy, and attachment upload may be visible only as disabled buttons, inert tabs, placeholder rows, empty states, or scope badges until backend contracts exist.
 - Future-only surfaces must avoid real-looking data counts or fake document names unless the surrounding copy clearly marks them as unavailable UI placeholders.
 - New fetches require a real backend route, a frontend API function in `frontend/src/lib`, and contract-level validation.

@@ -14,7 +14,7 @@
 - Clerk remains external SaaS in the current implementation; there is no local auth database.
 - Postgres stores app-owned data: local `app_users`, document metadata/chunks/embeddings, ingestion jobs, chat sessions/messages, and source attribution records.
 - MinIO provides local S3-compatible original-document storage through an object-storage boundary.
-- Backend runs on port `8000` and exposes `GET /health`, protected document APIs, protected chat/session APIs, and SSE-style streaming chat responses.
+- Backend runs on port `8000` and exposes `GET /health`, protected document APIs, protected chat/session APIs including owner-scoped session deletion, and SSE-style streaming chat responses.
 - Frontend runs on port `5173` and calls the backend through `VITE_API_BASE_URL`.
 - Docker Compose wires Postgres, MinIO bucket setup, backend, worker, and frontend startup through health checks or service dependencies.
 
@@ -26,6 +26,7 @@
 - Local app user persistence is exposed through a narrow user-sync boundary; callers should depend on local app user identity, not raw Clerk ids or SQLAlchemy details.
 - Protected frontend-to-backend calls use `Authorization: Bearer <Clerk session token>`.
 - Frontend backend calls belong in `frontend/src/lib/api.ts`; UI surfaces should call that interface instead of hand-rolling fetch behavior.
+- Frontend stateful RAG workspace behavior belongs in Vue composables under `frontend/src/composables`; visual components should consume those interfaces instead of owning API orchestration directly.
 - Document upload/list/delete behavior belongs behind the backend document service and object-storage interface; route code should not expose object keys or storage SDK details.
 - Ingestion behavior belongs in the worker/service boundary; callers should rely on document/job status transitions rather than extraction, retry, or chunking internals.
 - RAG orchestration depends on explicit embedding, query-rewrite, and answer-generation interfaces so tests and evals can use deterministic doubles without OpenAI calls.

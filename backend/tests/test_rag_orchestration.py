@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+import asyncio
+from collections.abc import AsyncIterator, Iterator, Sequence
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import UUID, uuid4
@@ -12,11 +13,15 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.chat.rag_orchestration import (
+    AnswerStreamDelta,
+    AnswerStreamFinal,
     ChatHistoryMessage,
     ChatModelConfigurationError,
     PydanticAIAnswerService,
     PydanticAIQueryRewriteService,
     RAGOrchestrationService,
+    RAGOrchestrationStreamDelta,
+    RAGOrchestrationStreamFinal,
     build_openai_chat_model,
     build_source_citation_payloads,
     generate_no_source_answer,
@@ -62,6 +67,28 @@ def test_answer_generation_uses_pydantic_ai_model_double() -> None:
 
     assert answer == "Escalation must happen within two days."
     assert usage is not None and usage["requests"] == 1
+
+
+def test_answer_generation_streams_text_deltas_with_pydantic_ai_model_double() -> None:
+    service = PydanticAIAnswerService(
+        model=TestModel(custom_output_text="Escalation must happen within two days.")
+    )
+
+    events = asyncio.run(
+        collect_answer_events(
+            service.stream_answer(
+                current_message="When does escalation happen?",
+                history=[],
+                sources=[make_retrieval_result(text="Escalation must happen within two days.")],
+            )
+        )
+    )
+
+    deltas = [event.text for event in events if isinstance(event, AnswerStreamDelta)]
+    final = next(event for event in events if isinstance(event, AnswerStreamFinal))
+    assert "".join(deltas) == "Escalation must happen within two days."
+    assert len(deltas) > 1
+    assert final.usage is not None and final.usage["requests"] == 1
 
 
 def test_title_generation_uses_pydantic_ai_model_double() -> None:
@@ -188,6 +215,50 @@ def test_orchestration_enriches_sources_before_answer_and_citation_payloads(
     assert result.sources[0].section_title == "Derived document outline"
 
 
+def test_orchestration_streams_answer_deltas_before_final(
+    db_session: Session,
+) -> None:
+    provider = FakeEmbeddingProvider()
+    session = create_session_with_messages(db_session, prior_message_count=0)
+    create_embedded_chunk(
+        db_session,
+        app_user_id=session.app_user_id,
+        text="Escalation deadline is two days.",
+        embedding=provider.embed_query("escalation deadline"),
+    )
+    db_session.commit()
+    service = RAGOrchestrationService(
+        embedding_provider=provider,
+        query_rewriter=RecordingQueryRewriter("escalation deadline"),
+        answer_generator=RecordingAnswerGenerator(
+            "Escalation deadline is two days.",
+            stream_deltas=["Escalation deadline ", "is two days."],
+        ),
+        chat_model="test-chat-model",
+        top_k=5,
+        min_similarity=0.7,
+    )
+
+    events = asyncio.run(
+        collect_stream_events(
+            service.generate_stream(
+                db=db_session,
+                session_id=session.id,
+                current_message="When is the escalation deadline?",
+            )
+        )
+    )
+
+    assert [event.text for event in events if isinstance(event, RAGOrchestrationStreamDelta)] == [
+        "Escalation deadline ",
+        "is two days.",
+    ]
+    final = next(event for event in events if isinstance(event, RAGOrchestrationStreamFinal))
+    assert final.result.answer == "Escalation deadline is two days."
+    assert final.result.usage == {"requests": 1}
+    assert final.result.sources[0].excerpt == "Escalation deadline is two days."
+
+
 def test_markdown_section_outline_enricher_counts_headings_from_matching_sections(
     db_session: Session,
 ) -> None:
@@ -286,8 +357,9 @@ class RecordingQueryRewriter:
 
 
 class RecordingAnswerGenerator:
-    def __init__(self, answer: str) -> None:
+    def __init__(self, answer: str, stream_deltas: list[str] | None = None) -> None:
         self.answer_text = answer
+        self.stream_deltas = stream_deltas
         self.seen_current_message: str | None = None
         self.seen_sources: list[RetrievalResult] = []
 
@@ -301,6 +373,19 @@ class RecordingAnswerGenerator:
         self.seen_current_message = current_message
         self.seen_sources = list(sources)
         return self.answer_text, {"requests": 1}
+
+    async def stream_answer(
+        self,
+        *,
+        current_message: str,
+        history: Sequence[ChatHistoryMessage],
+        sources: Sequence[RetrievalResult],
+    ) -> AsyncIterator[AnswerStreamDelta | AnswerStreamFinal]:
+        self.seen_current_message = current_message
+        self.seen_sources = list(sources)
+        for delta in self.stream_deltas or [self.answer_text]:
+            yield AnswerStreamDelta(delta)
+        yield AnswerStreamFinal(usage={"requests": 1})
 
 
 class RecordingSourceEnricher:
@@ -341,6 +426,27 @@ class FailingAnswerGenerator:
         sources: Sequence[RetrievalResult],
     ) -> tuple[str, dict[str, object] | None]:
         raise AssertionError("answer model should not run when no sources are retrieved")
+
+    async def stream_answer(
+        self,
+        *,
+        current_message: str,
+        history: Sequence[ChatHistoryMessage],
+        sources: Sequence[RetrievalResult],
+    ) -> AsyncIterator[AnswerStreamDelta | AnswerStreamFinal]:
+        raise AssertionError("answer model should not run when no sources are retrieved")
+
+
+async def collect_stream_events(
+    events: AsyncIterator[RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal],
+) -> list[RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal]:
+    return [event async for event in events]
+
+
+async def collect_answer_events(
+    events: AsyncIterator[AnswerStreamDelta | AnswerStreamFinal],
+) -> list[AnswerStreamDelta | AnswerStreamFinal]:
+    return [event async for event in events]
 
 
 def create_session_with_messages(db: Session, *, prior_message_count: int) -> ChatSession:

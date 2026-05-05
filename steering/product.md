@@ -20,6 +20,7 @@
 - Upload `.txt`, `.pdf`, and `.md` documents into a shared pool.
 - Ask questions about uploaded documents and see answers with source document attribution.
 - Keep user-scoped chat history, start new chat sessions, and name sessions from the first user message using the model or deterministic fallback.
+- Delete owned chat sessions when they are no longer useful.
 - Allow any authenticated user to delete any document from the shared pool through explicit tombstone behavior.
 
 ## Core Domain Concepts
@@ -37,6 +38,7 @@
 - This is an internal tool, not a public multi-tenant SaaS product.
 - Clerk owns registration, login, logout, sessions, and identity data in the current architecture; the app does not own auth tables.
 - The app owns local app-user references for app data; it must not become the source of truth for authentication.
+- Chat sessions are user-owned records; missing or cross-user session ids should not leak ownership information.
 - Any-user document deletion is an explicit product direction, not a permissions accident, and remains security-sensitive through tombstone/audit behavior.
 
 ## Durable Constraints

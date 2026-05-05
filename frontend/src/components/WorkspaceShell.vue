@@ -68,7 +68,7 @@ function formatDate(value?: string | null) {
           </div>
           <div>
             <h1 class="text-xl font-bold tracking-tight text-white">RAG Architect</h1>
-            <p class="mt-1 text-xs text-slate-400">Enterprise Tier</p>
+            <p class="mt-1 text-xs text-slate-400">Internal Workspace</p>
           </div>
         </div>
         <button
