@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Iterator, Sequence
+from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import UUID, uuid4
@@ -17,6 +18,7 @@ from app.chat.rag_orchestration import (
     AnswerStreamFinal,
     ChatHistoryMessage,
     ChatModelConfigurationError,
+    PreparedRAGStreamContext,
     PydanticAIAnswerService,
     PydanticAIQueryRewriteService,
     RAGOrchestrationResult,
@@ -33,6 +35,7 @@ from app.core.config import Settings
 from app.models.app_user import AppUser
 from app.models.rag import ChatMessage, ChatSession, Document, DocumentChunk, DocumentEmbedding
 from app.retrieval.service import RetrievalResult
+from evals.runner import generate_eval_result
 
 
 @pytest.fixture
@@ -124,16 +127,16 @@ def test_orchestration_uses_current_message_plus_last_six_same_session_messages(
         min_similarity=0.7,
     )
 
-    result = asyncio.run(
-        collect_final_result(
-            service.generate_stream(
-                db=db_session,
-                session_id=session.id,
-                current_message=current_message.content,
-                current_message_id=current_message.id,
-            )
+    prepared_context = asyncio.run(
+        prepare_context(
+            service=service,
+            db=db_session,
+            session_id=session.id,
+            current_message=current_message.content,
+            current_message_id=current_message.id,
         )
     )
+    result = asyncio.run(collect_final_result(service.stream_prepared_answer(prepared_context)))
 
     assert result.answer == "Escalation deadline is two days."
     assert [message.content for message in rewriter.seen_history] == [
@@ -161,15 +164,15 @@ def test_orchestration_generates_no_source_response_without_answer_model(
         min_similarity=0.7,
     )
 
-    result = asyncio.run(
-        collect_final_result(
-            service.generate_stream(
-                db=db_session,
-                session_id=session.id,
-                current_message="Can uploaded docs answer this?",
-            )
+    prepared_context = asyncio.run(
+        prepare_context(
+            service=service,
+            db=db_session,
+            session_id=session.id,
+            current_message="Can uploaded docs answer this?",
         )
     )
+    result = asyncio.run(collect_final_result(service.stream_prepared_answer(prepared_context)))
 
     assert result.answer == generate_no_source_answer()
     assert result.sources == []
@@ -199,15 +202,15 @@ def test_orchestration_enriches_sources_before_answer_and_citation_payloads(
         source_enricher=enricher,
     )
 
-    result = asyncio.run(
-        collect_final_result(
-            service.generate_stream(
-                db=db_session,
-                session_id=session.id,
-                current_message="How many components does DaisyUI have?",
-            )
+    prepared_context = asyncio.run(
+        prepare_context(
+            service=service,
+            db=db_session,
+            session_id=session.id,
+            current_message="How many components does DaisyUI have?",
         )
     )
+    result = asyncio.run(collect_final_result(service.stream_prepared_answer(prepared_context)))
 
     assert enricher.seen_retrieval_query == "DaisyUI components"
     assert answerer.seen_sources[0].section_title == "Derived document outline"
@@ -239,15 +242,15 @@ def test_orchestration_streams_answer_deltas_before_final(
         min_similarity=0.7,
     )
 
-    events = asyncio.run(
-        collect_stream_events(
-            service.generate_stream(
-                db=db_session,
-                session_id=session.id,
-                current_message="When is the escalation deadline?",
-            )
+    prepared_context = asyncio.run(
+        prepare_context(
+            service=service,
+            db=db_session,
+            session_id=session.id,
+            current_message="When is the escalation deadline?",
         )
     )
+    events = asyncio.run(collect_stream_events(service.stream_prepared_answer(prepared_context)))
 
     assert [event.text for event in events if isinstance(event, RAGOrchestrationStreamDelta)] == [
         "Escalation deadline ",
@@ -257,6 +260,106 @@ def test_orchestration_streams_answer_deltas_before_final(
     assert final.result.answer == "Escalation deadline is two days."
     assert final.result.usage == {"requests": 1}
     assert final.result.sources[0].excerpt == "Escalation deadline is two days."
+
+
+def test_prepared_stream_context_streams_after_database_session_is_closed(
+    migrated_database: Engine,
+) -> None:
+    session_factory = sessionmaker(bind=migrated_database, autoflush=False, expire_on_commit=False)
+    provider = FakeEmbeddingProvider()
+    with session_factory() as db:
+        session = create_session_with_messages(db, prior_message_count=1)
+        create_embedded_chunk(
+            db,
+            app_user_id=session.app_user_id,
+            text="Escalation deadline is two days.",
+            embedding=provider.embed_query("escalation deadline"),
+        )
+        db.commit()
+        session_id = session.id
+
+        service = RAGOrchestrationService(
+            embedding_provider=provider,
+            query_rewriter=RecordingQueryRewriter("escalation deadline"),
+            answer_generator=RecordingAnswerGenerator("Escalation deadline is two days."),
+            chat_model="test-chat-model",
+            top_k=5,
+            min_similarity=0.7,
+        )
+
+        prepared_context = asyncio.run(
+            prepare_context(
+                service=service,
+                db=db,
+                session_id=session_id,
+                current_message="When is the escalation deadline?",
+            )
+        )
+
+    with pytest.raises(FrozenInstanceError):
+        prepared_context.current_message = "mutated"  # type: ignore[misc]
+
+    result = asyncio.run(collect_final_result(service.stream_prepared_answer(prepared_context)))
+
+    assert result.answer == "Escalation deadline is two days."
+    assert result.sources[0].excerpt == "Escalation deadline is two days."
+
+
+def test_prepare_stream_context_releases_database_session_during_model_backed_work(
+    migrated_database: Engine,
+) -> None:
+    session_factory = TrackingSessionFactory(migrated_database)
+    provider = SessionLifecycleEmbeddingProvider(session_factory)
+    with session_factory() as db:
+        session = create_session_with_messages(db, prior_message_count=1)
+        create_embedded_chunk(
+            db,
+            app_user_id=session.app_user_id,
+            text="Escalation deadline is two days.",
+            embedding=provider.embed_query("escalation deadline"),
+        )
+        db.commit()
+        session_id = session.id
+
+    rewriter = SessionLifecycleQueryRewriter(
+        query="escalation deadline",
+        session_factory=session_factory,
+    )
+    service = RAGOrchestrationService(
+        embedding_provider=provider,
+        query_rewriter=rewriter,
+        answer_generator=RecordingAnswerGenerator("Escalation deadline is two days."),
+        chat_model="test-chat-model",
+        top_k=5,
+        min_similarity=0.7,
+    )
+
+    prepared_context = asyncio.run(
+        service.prepare_stream_context(
+            session_factory=session_factory,
+            session_id=session_id,
+            current_message="When is the escalation deadline?",
+        )
+    )
+
+    assert prepared_context.answer_sources
+    assert rewriter.rewrote_without_active_session is True
+    assert provider.embedded_query_without_active_session is True
+
+
+def test_eval_runner_uses_prepared_stream_lifecycle(db_session: Session) -> None:
+    session = create_session_with_messages(db_session, prior_message_count=0)
+    service = SplitLifecycleEvalService()
+
+    result = generate_eval_result(
+        service=service,  # type: ignore[arg-type]
+        db=db_session,
+        session_id=session.id,
+        current_message="When is the escalation deadline?",
+    )
+
+    assert result.answer == "eval answer"
+    assert service.prepared_context is True
 
 
 def test_markdown_section_outline_enricher_counts_headings_from_matching_sections(
@@ -415,6 +518,139 @@ class FailingAnswerGenerator:
         sources: Sequence[RetrievalResult],
     ) -> AsyncIterator[AnswerStreamDelta | AnswerStreamFinal]:
         raise AssertionError("answer model should not run when no sources are retrieved")
+
+
+class SplitLifecycleEvalService:
+    def __init__(self) -> None:
+        self.prepared_context = False
+
+    async def prepare_stream_context(
+        self,
+        *,
+        session_factory: object,
+        session_id: UUID,
+        current_message: str,
+        current_message_id: UUID | None = None,
+    ) -> PreparedRAGStreamContext:
+        assert session_factory
+        assert session_id
+        assert current_message
+        assert current_message_id is None
+        self.prepared_context = True
+        return PreparedRAGStreamContext(
+            current_message=current_message,
+            retrieval_query="eval query",
+            answer_history=(),
+            answer_sources=(),
+            citations=(),
+            model="eval-model",
+        )
+
+    async def stream_prepared_answer(
+        self,
+        prepared_context: PreparedRAGStreamContext,
+    ) -> AsyncIterator[RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal]:
+        assert self.prepared_context
+        assert prepared_context.retrieval_query == "eval query"
+        yield RAGOrchestrationStreamFinal(
+            RAGOrchestrationResult(
+                answer="eval answer",
+                retrieval_query=prepared_context.retrieval_query,
+                sources=[],
+                model=prepared_context.model,
+                usage=None,
+            )
+        )
+
+    async def generate_stream(self, **_: object) -> AsyncIterator[object]:
+        raise AssertionError("eval runner should not use generate_stream")
+
+
+class ExistingSessionFactory:
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def __call__(self) -> ExistingSessionContext:
+        return ExistingSessionContext(self._db)
+
+
+class ExistingSessionContext:
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def __enter__(self) -> Session:
+        return self._db
+
+    def __exit__(self, *_exc: object) -> None:
+        self._db.rollback()
+
+
+class TrackingSessionFactory:
+    def __init__(self, engine: Engine) -> None:
+        self._sessionmaker = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+        self.active_sessions = 0
+
+    def __call__(self) -> TrackingSessionContext:
+        return TrackingSessionContext(self, self._sessionmaker())
+
+
+class TrackingSessionContext:
+    def __init__(self, factory: TrackingSessionFactory, session: Session) -> None:
+        self._factory = factory
+        self._session = session
+
+    def __enter__(self) -> Session:
+        self._factory.active_sessions += 1
+        return self._session
+
+    def __exit__(self, *_exc: object) -> None:
+        self._factory.active_sessions -= 1
+        self._session.close()
+
+
+class SessionLifecycleQueryRewriter:
+    def __init__(self, *, query: str, session_factory: TrackingSessionFactory) -> None:
+        self.query = query
+        self._session_factory = session_factory
+        self.rewrote_without_active_session = False
+
+    async def rewrite(
+        self,
+        *,
+        current_message: str,
+        history: Sequence[ChatHistoryMessage],
+    ) -> str:
+        assert current_message
+        assert history is not None
+        self.rewrote_without_active_session = self._session_factory.active_sessions == 0
+        return self.query
+
+
+class SessionLifecycleEmbeddingProvider(FakeEmbeddingProvider):
+    def __init__(self, session_factory: TrackingSessionFactory) -> None:
+        self._session_factory = session_factory
+        self.embedded_query_without_active_session = False
+
+    def embed_query(self, text: str) -> list[float]:
+        if text == "escalation deadline":
+            self.embedded_query_without_active_session = self._session_factory.active_sessions == 0
+        return super().embed_query(text)
+
+
+async def prepare_context(
+    *,
+    service: RAGOrchestrationService,
+    db: Session,
+    session_id: UUID,
+    current_message: str,
+    current_message_id: UUID | None = None,
+) -> PreparedRAGStreamContext:
+    return await service.prepare_stream_context(
+        session_factory=ExistingSessionFactory(db),
+        session_id=session_id,
+        current_message=current_message,
+        current_message_id=current_message_id,
+    )
 
 
 async def collect_stream_events(

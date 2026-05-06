@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     ingestion_worker_id: str = "local-worker-1"
     ingestion_max_attempts: int = Field(default=3, ge=1, le=20)
     ingestion_base_retry_seconds: int = Field(default=30, ge=1, le=86_400)
+    ingestion_stale_after_seconds: int = Field(default=1_800, ge=1, le=86_400)
+    ingestion_stale_recovery_batch_size: int = Field(default=10, ge=1, le=1_000)
 
     @property
     def backend_cors_origin_list(self) -> list[str]:

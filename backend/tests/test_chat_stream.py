@@ -4,15 +4,20 @@ import json
 from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
 from hashlib import sha256
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 from pydantic_ai.models.test import TestModel
 from sqlalchemy import func, select
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
-from app.api.chat import get_chat_title_generator, get_rag_orchestration_service
+from app.api.chat import (
+    get_chat_sessionmaker,
+    get_chat_title_generator,
+    get_rag_orchestration_service,
+)
 from app.chat.rag_orchestration import (
     PydanticAIAnswerService,
     PydanticAIQueryRewriteService,
@@ -247,6 +252,33 @@ def test_stream_failure_emits_error_without_persisting_assistant_message(
         assert list(roles) == ["user"]
 
 
+def test_stream_releases_database_session_during_answer_generation(
+    client: TestClient,
+    make_clerk_token: Callable[..., str],
+    migrated_database: Engine,
+) -> None:
+    headers = {"Authorization": f"Bearer {make_clerk_token()}"}
+    session_id = UUID(client.post("/api/chat/sessions", headers=headers).json()["id"])
+    tracking_session_factory = TrackingSessionFactory(migrated_database)
+    rag_service = SessionLifecycleRAGService(tracking_session_factory)
+    client.app.dependency_overrides[get_chat_sessionmaker] = lambda: tracking_session_factory
+    client.app.dependency_overrides[get_rag_orchestration_service] = lambda: rag_service
+    client.app.dependency_overrides[get_chat_title_generator] = lambda: StaticTitleGenerator(
+        "Session lifecycle"
+    )
+
+    response = client.post(
+        f"/api/chat/sessions/{session_id}/messages/stream",
+        headers=headers,
+        json={"content": "Prove no DB session is open during streaming."},
+    )
+
+    client.app.dependency_overrides.clear()
+    assert [event["event"] for event in parse_sse_events(response.text)] == ["delta", "final"]
+    assert rag_service.streamed_without_active_session is True
+    assert tracking_session_factory.opened_sessions == 2
+
+
 def test_stream_persistence_failure_rolls_back_partial_assistant_and_sources(
     client: TestClient,
     make_clerk_token: Callable[..., str],
@@ -423,38 +455,117 @@ class StaticRAGService:
         self.result = result
         self.deltas = deltas
 
-    async def generate_stream(
+    async def prepare_stream_context(
         self,
         *,
-        db: Session,
+        session_factory: object,
         session_id: UUID,
         current_message: str,
         current_message_id: UUID | None = None,
-    ) -> AsyncIterator[RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal]:
-        assert db
+        stream_run_id: str | None = None,
+    ) -> SimpleNamespace:
+        assert session_factory
         assert session_id
         assert current_message
         assert current_message_id
+        assert stream_run_id
+        return SimpleNamespace(answer_sources=tuple(self.result.sources))
+
+    async def stream_prepared_answer(
+        self,
+        _prepared_context: SimpleNamespace,
+    ) -> AsyncIterator[RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal]:
         for delta in self.deltas or [self.result.answer]:
             yield RAGOrchestrationStreamDelta(delta)
         yield RAGOrchestrationStreamFinal(self.result)
 
 
 class FailingRAGService:
-    async def generate_stream(
+    async def prepare_stream_context(
         self,
         *,
-        db: Session,
+        session_factory: object,
         session_id: UUID,
         current_message: str,
         current_message_id: UUID | None = None,
-    ) -> AsyncIterator[RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal]:
-        assert db
+        stream_run_id: str | None = None,
+    ) -> SimpleNamespace:
+        assert session_factory
         assert session_id
         assert current_message
         assert current_message_id
+        assert stream_run_id
+        return SimpleNamespace(answer_sources=())
+
+    async def stream_prepared_answer(
+        self,
+        _prepared_context: SimpleNamespace,
+    ) -> AsyncIterator[RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal]:
         raise RuntimeError("model unavailable")
         yield RAGOrchestrationStreamDelta("")  # pragma: no cover
+
+
+class SessionLifecycleRAGService:
+    def __init__(self, session_factory: TrackingSessionFactory) -> None:
+        self._session_factory = session_factory
+        self.streamed_without_active_session = False
+        self.result = RAGOrchestrationResult(
+            answer="The database session is closed while answer text streams.",
+            retrieval_query="session lifecycle",
+            sources=[],
+            model="test-chat-model",
+            usage=None,
+        )
+
+    async def prepare_stream_context(
+        self,
+        *,
+        session_factory: object,
+        session_id: UUID,
+        current_message: str,
+        current_message_id: UUID | None = None,
+        stream_run_id: str | None = None,
+    ) -> SimpleNamespace:
+        assert session_factory
+        assert session_id
+        assert current_message
+        assert current_message_id
+        assert stream_run_id
+        return SimpleNamespace(answer_sources=(object(),))
+
+    async def stream_prepared_answer(
+        self,
+        _prepared_context: SimpleNamespace,
+    ) -> AsyncIterator[RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal]:
+        self.streamed_without_active_session = self._session_factory.active_sessions == 0
+        yield RAGOrchestrationStreamDelta(self.result.answer)
+        assert self._session_factory.active_sessions == 0
+        yield RAGOrchestrationStreamFinal(self.result)
+
+
+class TrackingSessionFactory:
+    def __init__(self, engine: Engine) -> None:
+        self._sessionmaker = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+        self.active_sessions = 0
+        self.opened_sessions = 0
+
+    def __call__(self) -> TrackingSessionContext:
+        return TrackingSessionContext(self, self._sessionmaker())
+
+
+class TrackingSessionContext:
+    def __init__(self, factory: TrackingSessionFactory, session: Session) -> None:
+        self._factory = factory
+        self._session = session
+
+    def __enter__(self) -> Session:
+        self._factory.active_sessions += 1
+        self._factory.opened_sessions += 1
+        return self._session
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        self._factory.active_sessions -= 1
+        self._session.close()
 
 
 class StaticEmbeddingProvider:

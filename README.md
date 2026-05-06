@@ -65,6 +65,13 @@ Open:
 
 Compose also starts Postgres, runs Alembic migrations, creates the MinIO bucket, and starts the ingestion worker.
 
+Internal queue health can be inspected from the backend environment without exposing an HTTP endpoint:
+
+```sh
+cd backend
+uv run python -m app.ingestion.worker --queue-health
+```
+
 ## Local Development
 
 Backend:

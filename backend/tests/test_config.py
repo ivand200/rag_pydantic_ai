@@ -10,6 +10,8 @@ SETTINGS_ENV_KEYS = [
     "OPENAI_API_KEY",
     "RAG_CHUNK_TARGET_TOKENS",
     "RAG_CHUNK_OVERLAP_TOKENS",
+    "INGESTION_STALE_AFTER_SECONDS",
+    "INGESTION_STALE_RECOVERY_BATCH_SIZE",
 ]
 
 
@@ -27,6 +29,8 @@ def test_rag_runtime_settings_have_approved_defaults() -> None:
     assert settings.rag_retrieval_min_similarity == 0.45
     assert settings.object_storage_bucket == "rag-documents"
     assert settings.max_extracted_chars == 500_000
+    assert settings.ingestion_stale_after_seconds == 1_800
+    assert settings.ingestion_stale_recovery_batch_size == 10
 
 
 def test_openai_key_is_optional_for_foundation_runtime() -> None:

@@ -162,6 +162,80 @@ def append_assistant_message_with_sources(
     if session is None:
         return None
 
+    return _append_assistant_message_with_sources_for_session(
+        db=db,
+        session=session,
+        content=content,
+        model=model,
+        retrieval_query=retrieval_query,
+        usage=usage,
+        sources=sources,
+    )
+
+
+def append_assistant_message_with_sources_for_app_user_id(
+    *,
+    db: Session,
+    app_user_id: UUID,
+    session_id: UUID,
+    content: str,
+    model: str,
+    retrieval_query: str,
+    usage: dict[str, object] | None,
+    sources: list[SourceCitationPayload],
+) -> ChatMessageResponse | None:
+    session = _owned_session_by_app_user_id(
+        db=db,
+        app_user_id=app_user_id,
+        session_id=session_id,
+    )
+    if session is None:
+        return None
+
+    return _append_assistant_message_with_sources_for_session(
+        db=db,
+        session=session,
+        content=content,
+        model=model,
+        retrieval_query=retrieval_query,
+        usage=usage,
+        sources=sources,
+    )
+
+
+def _owned_session(*, db: Session, app_user: AppUser, session_id: UUID) -> ChatSession | None:
+    return db.execute(
+        select(ChatSession).where(
+            ChatSession.id == session_id,
+            ChatSession.app_user_id == app_user.id,
+        )
+    ).scalar_one_or_none()
+
+
+def _owned_session_by_app_user_id(
+    *,
+    db: Session,
+    app_user_id: UUID,
+    session_id: UUID,
+) -> ChatSession | None:
+    return db.execute(
+        select(ChatSession).where(
+            ChatSession.id == session_id,
+            ChatSession.app_user_id == app_user_id,
+        )
+    ).scalar_one_or_none()
+
+
+def _append_assistant_message_with_sources_for_session(
+    *,
+    db: Session,
+    session: ChatSession,
+    content: str,
+    model: str,
+    retrieval_query: str,
+    usage: dict[str, object] | None,
+    sources: list[SourceCitationPayload],
+) -> ChatMessageResponse:
     if not content.strip():
         raise EmptyChatMessageError("Chat messages must include non-empty content.")
 
@@ -203,15 +277,6 @@ def append_assistant_message_with_sources(
         message,
         [MessageSourceResponse.model_validate(source) for source in source_rows],
     )
-
-
-def _owned_session(*, db: Session, app_user: AppUser, session_id: UUID) -> ChatSession | None:
-    return db.execute(
-        select(ChatSession).where(
-            ChatSession.id == session_id,
-            ChatSession.app_user_id == app_user.id,
-        )
-    ).scalar_one_or_none()
 
 
 def _should_generate_title(*, db: Session, session: ChatSession) -> bool:

@@ -58,6 +58,25 @@ class SeededFixture:
     deleted_chunk: DocumentChunk
 
 
+class ExistingSessionFactory:
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def __call__(self) -> ExistingSessionContext:
+        return ExistingSessionContext(self._db)
+
+
+class ExistingSessionContext:
+    def __init__(self, db: Session) -> None:
+        self._db = db
+
+    def __enter__(self) -> Session:
+        return self._db
+
+    def __exit__(self, *_exc: object) -> None:
+        self._db.rollback()
+
+
 QUALITY_GROUPS: tuple[EvalQualityGroup, ...] = (
     EvalQualityGroup("Retrieval and grounding", ("retrieval_hit", "aggregate_outline_count")),
     EvalQualityGroup("Citation behavior", ("citation_correctness",)),
@@ -425,16 +444,16 @@ def generate_eval_result(
     current_message: str,
     current_message_id: UUID | None = None,
 ) -> RAGOrchestrationResult:
-    return asyncio.run(
-        collect_final_result(
-            service.generate_stream(
-                db=db,
-                session_id=session_id,
-                current_message=current_message,
-                current_message_id=current_message_id,
-            )
+    session_factory = ExistingSessionFactory(db)
+    prepared_context = asyncio.run(
+        service.prepare_stream_context(
+            session_factory=session_factory,
+            session_id=session_id,
+            current_message=current_message,
+            current_message_id=current_message_id,
         )
     )
+    return asyncio.run(collect_final_result(service.stream_prepared_answer(prepared_context)))
 
 
 async def collect_final_result(

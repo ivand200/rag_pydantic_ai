@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Sequence
+import logging
+from collections.abc import AsyncIterator, Callable, Sequence
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Literal, Protocol
 from uuid import UUID
@@ -21,11 +23,12 @@ from app.chat.source_enrichment import (
 from app.core.config import Settings
 from app.models.rag import ChatMessage
 from app.retrieval.embeddings import EmbeddingProvider
-from app.retrieval.service import RetrievalResult, retrieve_relevant_chunks
+from app.retrieval.service import RetrievalResult, retrieve_relevant_chunks_by_embedding
 
 DEFAULT_HISTORY_MESSAGES = 6
 MAX_CITATION_EXCERPT_CHARS = 500
 NO_SOURCE_ANSWER = "I could not find relevant sources in the uploaded documents to answer that."
+logger = logging.getLogger(__name__)
 
 
 class ChatModelConfigurationError(RuntimeError):
@@ -77,6 +80,16 @@ class RAGOrchestrationResult(BaseModel):
 
 
 @dataclass(frozen=True)
+class PreparedRAGStreamContext:
+    current_message: str
+    retrieval_query: str
+    answer_history: tuple[ChatHistoryMessage, ...]
+    answer_sources: tuple[RetrievalResult, ...]
+    citations: tuple[SourceCitationPayload, ...]
+    model: str
+
+
+@dataclass(frozen=True)
 class AnswerStreamDelta:
     text: str
 
@@ -100,6 +113,7 @@ class RAGOrchestrationStreamFinal:
 
 
 RAGOrchestrationStreamEvent = RAGOrchestrationStreamDelta | RAGOrchestrationStreamFinal
+SessionFactory = Callable[[], AbstractContextManager[Session]]
 
 
 class QueryRewriteService(Protocol):
@@ -194,44 +208,115 @@ class RAGOrchestrationService:
     rewrite_history_messages: int = DEFAULT_HISTORY_MESSAGES
     answer_history_messages: int = DEFAULT_HISTORY_MESSAGES
 
-    async def generate_stream(
+    async def prepare_stream_context(
+        self,
+        *,
+        session_factory: SessionFactory,
+        session_id: UUID,
+        current_message: str,
+        current_message_id: UUID | None = None,
+        stream_run_id: str | None = None,
+    ) -> PreparedRAGStreamContext:
+        with session_factory() as db:
+            rewrite_history = self._load_stream_rewrite_history(
+                db=db,
+                session_id=session_id,
+                current_message_id=current_message_id,
+            )
+        retrieval_query = await self._rewrite_retrieval_query(
+            current_message=current_message,
+            rewrite_history=rewrite_history,
+            stream_run_id=stream_run_id,
+            session_id=session_id,
+            message_id=current_message_id,
+        )
+        query_embedding = self._embed_retrieval_query(retrieval_query)
+        with session_factory() as db:
+            return self._prepare_stream_context_from_query_embedding(
+                db=db,
+                session_id=session_id,
+                current_message=current_message,
+                current_message_id=current_message_id,
+                retrieval_query=retrieval_query,
+                query_embedding=query_embedding,
+                stream_run_id=stream_run_id,
+            )
+
+    def _load_stream_rewrite_history(
+        self,
+        *,
+        db: Session,
+        session_id: UUID,
+        current_message_id: UUID | None = None,
+    ) -> tuple[ChatHistoryMessage, ...]:
+        return tuple(
+            load_recent_chat_history(
+                db=db,
+                session_id=session_id,
+                limit=self.rewrite_history_messages,
+                exclude_message_id=current_message_id,
+            )
+        )
+
+    async def _rewrite_retrieval_query(
+        self,
+        *,
+        current_message: str,
+        rewrite_history: Sequence[ChatHistoryMessage],
+        stream_run_id: str | None = None,
+        session_id: UUID,
+        message_id: UUID | None = None,
+    ) -> str:
+        retrieval_query = await self.query_rewriter.rewrite(
+            current_message=current_message,
+            history=rewrite_history,
+        )
+        _log_chat_event(
+            "chat.query_rewrite.completed",
+            stream_run_id=stream_run_id,
+            session_id=session_id,
+            message_id=message_id,
+        )
+        return retrieval_query
+
+    def _embed_retrieval_query(self, retrieval_query: str) -> list[float]:
+        return self.embedding_provider.embed_query(retrieval_query)
+
+    def _prepare_stream_context_from_query_embedding(
         self,
         *,
         db: Session,
         session_id: UUID,
         current_message: str,
         current_message_id: UUID | None = None,
-    ) -> AsyncIterator[RAGOrchestrationStreamEvent]:
-        rewrite_history = load_recent_chat_history(
+        retrieval_query: str,
+        query_embedding: list[float],
+        stream_run_id: str | None = None,
+    ) -> PreparedRAGStreamContext:
+        sources = retrieve_relevant_chunks_by_embedding(
             db=db,
-            session_id=session_id,
-            limit=self.rewrite_history_messages,
-            exclude_message_id=current_message_id,
-        )
-        retrieval_query = await self.query_rewriter.rewrite(
-            current_message=current_message,
-            history=rewrite_history,
-        )
-        sources = retrieve_relevant_chunks(
-            db=db,
-            embedding_provider=self.embedding_provider,
-            query=retrieval_query,
+            query_embedding=query_embedding,
             top_k=self.top_k,
             min_similarity=self.min_similarity,
         )
+        _log_chat_event(
+            "chat.retrieval.completed",
+            stream_run_id=stream_run_id,
+            session_id=session_id,
+            message_id=current_message_id,
+            source_count=len(sources),
+            retrieval_top_k=self.top_k,
+            retrieval_min_similarity=self.min_similarity,
+        )
         if not sources:
-            answer = generate_no_source_answer()
-            yield RAGOrchestrationStreamDelta(answer)
-            yield RAGOrchestrationStreamFinal(
-                RAGOrchestrationResult(
-                    answer=answer,
-                    retrieval_query=retrieval_query,
-                    sources=[],
-                    model=self.chat_model,
-                    usage=None,
-                )
+            return PreparedRAGStreamContext(
+                current_message=current_message,
+                retrieval_query=retrieval_query,
+                answer_history=(),
+                answer_sources=(),
+                citations=(),
+                model=self.chat_model,
             )
-            return
 
         answer_sources = self.source_enricher.enrich(
             db=db,
@@ -247,12 +332,39 @@ class RAGOrchestrationService:
             exclude_message_id=current_message_id,
         )
 
+        return PreparedRAGStreamContext(
+            current_message=current_message,
+            retrieval_query=retrieval_query,
+            answer_history=tuple(answer_history),
+            answer_sources=tuple(answer_sources),
+            citations=tuple(citations),
+            model=self.chat_model,
+        )
+
+    async def stream_prepared_answer(
+        self,
+        prepared_context: PreparedRAGStreamContext,
+    ) -> AsyncIterator[RAGOrchestrationStreamEvent]:
+        if not prepared_context.answer_sources:
+            answer = generate_no_source_answer()
+            yield RAGOrchestrationStreamDelta(answer)
+            yield RAGOrchestrationStreamFinal(
+                RAGOrchestrationResult(
+                    answer=answer,
+                    retrieval_query=prepared_context.retrieval_query,
+                    sources=[],
+                    model=prepared_context.model,
+                    usage=None,
+                )
+            )
+            return
+
         answer_parts: list[str] = []
         usage: dict[str, object] | None = None
         async for event in self.answer_generator.stream_answer(
-            current_message=current_message,
-            history=answer_history,
-            sources=answer_sources,
+            current_message=prepared_context.current_message,
+            history=prepared_context.answer_history,
+            sources=prepared_context.answer_sources,
         ):
             if isinstance(event, AnswerStreamDelta):
                 answer_parts.append(event.text)
@@ -267,9 +379,9 @@ class RAGOrchestrationService:
         yield RAGOrchestrationStreamFinal(
             RAGOrchestrationResult(
                 answer=answer,
-                retrieval_query=retrieval_query,
-                sources=citations,
-                model=self.chat_model,
+                retrieval_query=prepared_context.retrieval_query,
+                sources=list(prepared_context.citations),
+                model=prepared_context.model,
                 usage=usage,
             )
         )
@@ -424,3 +536,30 @@ def _usage_dict(usage: object) -> dict[str, object] | None:
     if hasattr(usage, "__dict__"):
         return dict(usage.__dict__)
     return None
+
+
+def _log_chat_event(
+    event: str,
+    *,
+    stream_run_id: str | None,
+    session_id: UUID,
+    message_id: UUID | None,
+    source_count: int | None = None,
+    retrieval_top_k: int | None = None,
+    retrieval_min_similarity: float | None = None,
+) -> None:
+    extra: dict[str, object] = {
+        "event": event,
+        "session_id": str(session_id),
+    }
+    if stream_run_id is not None:
+        extra["stream_run_id"] = stream_run_id
+    if message_id is not None:
+        extra["message_id"] = str(message_id)
+    if source_count is not None:
+        extra["source_count"] = source_count
+    if retrieval_top_k is not None:
+        extra["retrieval_top_k"] = retrieval_top_k
+    if retrieval_min_similarity is not None:
+        extra["retrieval_min_similarity"] = retrieval_min_similarity
+    logger.info("Chat lifecycle event.", extra=extra)

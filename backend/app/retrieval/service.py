@@ -30,12 +30,27 @@ def retrieve_relevant_chunks(
     top_k: int,
     min_similarity: float,
 ) -> list[RetrievalResult]:
+    query_embedding = embedding_provider.embed_query(query)
+    return retrieve_relevant_chunks_by_embedding(
+        db=db,
+        query_embedding=query_embedding,
+        top_k=top_k,
+        min_similarity=min_similarity,
+    )
+
+
+def retrieve_relevant_chunks_by_embedding(
+    *,
+    db: Session,
+    query_embedding: list[float],
+    top_k: int,
+    min_similarity: float,
+) -> list[RetrievalResult]:
     if top_k <= 0:
         raise ValueError("top_k must be positive")
     if min_similarity < 0 or min_similarity > 1:
         raise ValueError("min_similarity must be between 0 and 1")
 
-    query_embedding = embedding_provider.embed_query(query)
     cosine_distance = DocumentEmbedding.embedding.cosine_distance(query_embedding)
     similarity = 1 - cosine_distance
 
